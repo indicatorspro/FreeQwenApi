@@ -51,7 +51,55 @@ async function main() {
 
   const answer = completion.choices?.[0]?.message?.content || '';
   console.log(`${MODEL}: ${answer}`);
+
+  await checkToolCalling();
+
   console.log('Smoke-проверка OK');
+}
+
+/** Проверяет, что модель возвращает настоящий tool_call — то, чего ждут агенты. */
+async function checkToolCalling() {
+  const response = await requestJson('/chat/completions', {
+    method: 'POST',
+    body: JSON.stringify({
+      model: MODEL,
+      stream: false,
+      messages: [
+        { role: 'user', content: 'Какая сейчас погода в Москве? Используй доступный инструмент.' }
+      ],
+      tools: [{
+        type: 'function',
+        function: {
+          name: 'get_weather',
+          description: 'Возвращает текущую погоду в городе',
+          parameters: {
+            type: 'object',
+            properties: { city: { type: 'string', description: 'Название города' } },
+            required: ['city']
+          }
+        }
+      }]
+    })
+  });
+
+  const choice = response.choices?.[0];
+  const toolCall = choice?.message?.tool_calls?.[0];
+
+  if (!toolCall) {
+    console.warn(`Tool calling: модель ответила текстом вместо вызова (finish_reason=${choice?.finish_reason}). Это возможно, но нежелательно.`);
+    return;
+  }
+
+  if (toolCall.function?.name !== 'get_weather') {
+    throw new Error(`Tool calling: неверное имя функции ${toolCall.function?.name}`);
+  }
+
+  const args = JSON.parse(toolCall.function.arguments || '{}');
+  if (!args.city) {
+    throw new Error('Tool calling: в аргументах нет обязательного поля city');
+  }
+
+  console.log(`Tool calling: ${toolCall.function.name}(${toolCall.function.arguments})`);
 }
 
 main().catch(error => {
