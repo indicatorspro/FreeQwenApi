@@ -121,18 +121,8 @@ npm run test:video-polling
 
 ## Примеры на Python
 
-Python-реализация прокси запускает сервер с теми же OpenAI-совместимыми эндпоинтами:
-- `POST /api/chat/completions`
-- `POST /api/v1/chat/completions`
-- `POST /api/chat`
-
-Запуск:
-```bash
-pip install -r requirements.txt
-python main.py
-```
-
-После запуска можно использовать те же curl/OpenAI SDK примеры из этого каталога, только направив `base_url` на `http://localhost:3264/api`.
+Python-клиенты работают с тем же сервером на Node: запустите прокси
+(`npm start`) и направьте `base_url` на `http://localhost:3264/api/v1`.
 
 ### Python OpenAI SDK примеры
 

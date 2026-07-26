@@ -44,7 +44,7 @@ async function streamChat(userMessage) {
         );
 
         let fullContent = '';
-        let chunkCount = 0;
+        
         
         await new Promise((resolve, reject) => {
             response.data.on('data', (chunk) => {
@@ -59,7 +59,7 @@ async function streamChat(userMessage) {
                                 const content = json.choices[0].delta.content;
                                 process.stdout.write(content);
                                 fullContent += content;
-                                chunkCount++;
+                                
                             }
                         } catch (e) {
                             // Ignore parse errors

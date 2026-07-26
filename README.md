@@ -19,6 +19,7 @@ http://localhost:3264/api
 ## Возможности fork
 
 - **Chat Completions API**: `POST /api/chat/completions`, совместимый с OpenAI SDK, Open WebUI, LiteLLM и агентами.
+- **Tool calling для кодинг-агентов**: поле `tools` из запроса превращается в настоящие `tool_calls` — работают Codex, OpenCode, Cline, Continue и инструменты подключённых к ним MCP-серверов ([docs/TOOL_CALLING.md](docs/TOOL_CALLING.md)).
 - **Актуальные модели Qwen Chat**: `qwen3.7-max`, `qwen3.7-plus`, `qwen3.6-plus` и другие модели из `src/AvailableModels.txt`.
 - **Генерация изображений через Qwen Chat**: `POST /api/images/generations` без `DASHSCOPE_API_KEY`.
 - **Генерация видео через Qwen Chat**: `POST /api/videos/generations` + polling задач через `GET /api/tasks/status/:taskId`.
@@ -27,12 +28,11 @@ http://localhost:3264/api
 - **Open WebUI**: можно подключить как OpenAI-compatible backend.
 - **Hermes Agent / LiteLLM / Claude Code**: готовые примеры конфигов для локальных AI-агентов.
 - **Health/smoke tooling**: `/api/health`, `/api/status`, `/api/models`, `npm run smoke`, `npm run models:sync`.
-- **ForgetMeAI branding**: watermark `t.me/forgetmeai` в README, CLI и health/media metadata.
 
 ## Быстрый старт
 
 ```bash
-git clone https://github.com/ForgetMeAI/FreeQwenApi
+git clone https://github.com/heymoma/FreeQwenApi
 cd FreeQwenApi
 npm install
 npm run auth
@@ -101,13 +101,12 @@ npm run auth -- --remove
 curl http://localhost:3264/api/health
 ```
 
-Ответ содержит количество моделей, аккаунтов и watermark:
+Ответ содержит количество моделей и аккаунтов:
 
 ```json
 {
   "ok": true,
   "service": "FreeQwenApi",
-  "watermark": "t.me/forgetmeai",
   "baseUrl": "/api",
   "models": 28
 }
@@ -178,7 +177,6 @@ curl http://localhost:3264/api/images/generations \
 ```json
 {
   "created": 1770000000,
-  "watermark": "t.me/forgetmeai",
   "provider": "qwen-chat",
   "model": "qwen3-vl-plus",
   "data": [
@@ -265,39 +263,60 @@ API Key: dummy-key
 
 Полная инструкция: [docs/OPENWEBUI_SETUP.md](docs/OPENWEBUI_SETUP.md)
 
-## Hermes Agent / LiteLLM / Claude Code
+## Агенты и tool calling
 
-Hermes custom provider:
+Прокси принимает `tools` (и устаревшие `functions`) и возвращает настоящие
+`tool_calls` — как в потоковом, так и в обычном режиме. Инструменты MCP-серверов,
+подключённых к агенту, приходят обычными функциями и работают так же.
 
-```yaml
-custom_providers:
-  - name: qwen-free
-    base_url: http://localhost:3264/api
-    model: qwen3.7-max
-    api_key: dummy-key
+Codex CLI (`~/.codex/config.toml`):
+
+```toml
+model = "qwen3.7-max"
+model_provider = "freeqwen"
+
+[model_providers.freeqwen]
+name = "FreeQwenApi"
+base_url = "http://127.0.0.1:3264/api/v1"
+wire_api = "chat"
+env_key = "FREEQWEN_API_KEY"
 ```
 
-Готовый пример: [examples/hermes/config-snippet.yaml](examples/hermes/config-snippet.yaml)
+OpenCode (`opencode.json`):
 
-Для Hermes Agent прокси поддерживает OpenAI-compatible agent loop:
+```json
+{
+  "provider": {
+    "freeqwen": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "FreeQwenApi",
+      "options": { "baseURL": "http://127.0.0.1:3264/api/v1", "apiKey": "dummy" },
+      "models": { "qwen3.7-max": { "name": "Qwen 3.7 Max", "tools": true } }
+    }
+  }
+}
+```
 
-- `/api/chat/completions` и `/api/v1/chat/completions` принимают `tools` / legacy `functions`;
-- ответы с вызовами инструментов возвращаются как настоящие `message.tool_calls` или streaming `delta.tool_calls` с `finish_reason: "tool_calls"`;
-- tool-result продолжения Hermes (`role: "tool"`) не ломают контекст: прокси сворачивает OpenAI transcript в понятный Qwen Chat prompt и продолжает ответ после результата инструмента;
-- для Qwen Chat это адаптер поверх веб-чата, поэтому tool schemas эмулируются через системный prompt, но наружный контракт для Hermes остаётся OpenAI-compatible.
-
-LiteLLM bridge для Claude Code:
+Claude Code говорит в формате Anthropic, поэтому нужен мост — LiteLLM:
 
 ```yaml
 model_list:
   - model_name: qwen3.7-max
     litellm_params:
       model: openai/qwen3.7-max
-      api_base: http://localhost:3264/api
-      api_key: dummy-key
+      api_base: http://127.0.0.1:3264/api/v1
+      api_key: dummy
 ```
 
-Готовый пример: [examples/litellm/qwen_litellm.yaml](examples/litellm/qwen_litellm.yaml)
+```bash
+litellm --config litellm.yaml --port 4000
+ANTHROPIC_BASE_URL=http://127.0.0.1:4000 ANTHROPIC_MODEL=qwen3.7-max claude
+```
+
+Полное руководство со всеми клиентами, переменными и проверкой:
+[docs/TOOL_CALLING.md](docs/TOOL_CALLING.md).
+Готовые примеры: [examples/hermes/config-snippet.yaml](examples/hermes/config-snippet.yaml),
+[examples/litellm/qwen_litellm.yaml](examples/litellm/qwen_litellm.yaml).
 
 ## Docker
 
@@ -357,8 +376,30 @@ curl http://localhost:3264/api/images/status
 curl http://localhost:3264/api/videos/status
 ```
 
+## Разработка
+
+```bash
+npm test          # vitest
+npm run lint      # eslint
+```
+
+Структура проекта — три слоя, зависимости направлены внутрь:
+
+```text
+src/server/    HTTP: приложение, middleware, роуты, формат OpenAI
+src/services/  сценарии, общие для любого транспорта
+src/core/      домен: клиент Qwen, инструменты, аккаунты, модели, диалоги
+src/browser/   Puppeteer: запуск, сессия, stealth
+src/shared/    логгер, ошибки, идентификаторы, пути
+src/config/    конфигурация с валидацией
+```
+
+Подробнее: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
 ## Документация
 
+- [docs/TOOL_CALLING.md](docs/TOOL_CALLING.md) — tool calling и настройка агентов.
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — устройство проекта.
 - [docs/FORK_DEMO_QUICKSTART.md](docs/FORK_DEMO_QUICKSTART.md) — быстрый сценарий для демо/видео.
 - [docs/QWEN_CHAT_MODELS.md](docs/QWEN_CHAT_MODELS.md) — отчёт синхронизации моделей Qwen Chat.
 - [IMAGE_VIDEO_GENERATION_GUIDE.md](IMAGE_VIDEO_GENERATION_GUIDE.md) — генерация изображений и видео через `chatType`.
