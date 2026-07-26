@@ -34,7 +34,6 @@ function toList(value, fallback = []) {
 function toUrl(value, fallback, name) {
     const raw = value || fallback;
     try {
-        // eslint-disable-next-line no-new
         new URL(raw);
     } catch {
         throw new ConfigError(`Переменная ${name} должна быть корректным URL, получено: ${raw}`);

@@ -17,7 +17,14 @@ export default [
             }
         },
         rules: {
-            'no-unused-vars': ['error', { argsIgnorePattern: '^_', caughtErrors: 'none' }],
+            // ignoreRestSiblings: `const { index, ...rest } = call` — стандартный
+            // способ выкинуть поле из объекта, а не забытая переменная.
+            'no-unused-vars': ['error', {
+                argsIgnorePattern: '^_',
+                varsIgnorePattern: '^_',
+                caughtErrors: 'none',
+                ignoreRestSiblings: true
+            }],
             'no-console': 'off',
             eqeqeq: ['error', 'smart'],
             'prefer-const': 'error',

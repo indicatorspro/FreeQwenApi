@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
-import { loadTokens } from '../src/api/tokenManager.js';
-import { addAccountInteractive, reloginAccountInteractive, removeAccountInteractive } from '../src/utils/accountSetup.js';
-import { formatForgetMeAiWatermark } from '../src/utils/branding.js';
-import { prompt } from '../src/utils/prompt.js';
+import { listAccounts } from '../src/core/accounts/store.js';
+import { addAccountInteractive, reloginAccountInteractive, removeAccountInteractive } from '../src/cli/accounts.js';
+import { formatForgetMeAiWatermark } from '../src/shared/branding.js';
+import { prompt } from '../src/cli/prompt.js';
 
 function printDivider() {
     console.log('======================================================');
@@ -77,7 +77,7 @@ async function runCliAction(action) {
     }
 
     if (action === 'list') {
-        const tokens = loadTokens();
+        const tokens = listAccounts();
         handleList(tokens);
         return;
     }
@@ -100,7 +100,7 @@ async function runCliAction(action) {
 
 async function runInteractiveMenu() {
     while (true) {
-        const tokens = loadTokens();
+        const tokens = listAccounts();
         printDivider();
         console.log(formatForgetMeAiWatermark());
         printAccounts(tokens);
