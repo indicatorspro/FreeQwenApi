@@ -3,7 +3,6 @@
 import express from 'express';
 
 import { config } from '../../config/index.js';
-import { FORGETMEAI_WATERMARK } from '../../shared/branding.js';
 import { logError, logInfo, logWarn } from '../../shared/logger.js';
 import { accountsSummary, isAvailable, listAccounts, markInvalid, markRateLimited, markValid } from '../../core/accounts/store.js';
 import { getAvailableModels, listModelsOpenAI } from '../../core/models/registry.js';
@@ -19,7 +18,6 @@ router.get('/health', (req, res, next) => {
         res.json({
             ok: accounts.available > 0,
             service: 'FreeQwenApi',
-            watermark: FORGETMEAI_WATERMARK,
             baseUrl: '/api',
             models: getAvailableModels().length,
             accounts,

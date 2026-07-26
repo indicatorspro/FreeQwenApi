@@ -2,7 +2,6 @@
 
 import express from 'express';
 
-import { FORGETMEAI_WATERMARK } from '../../shared/branding.js';
 import { logInfo } from '../../shared/logger.js';
 import { accountsSummary } from '../../core/accounts/store.js';
 import { checkImageApiAvailability, getAvailableImageModels } from '../../core/dashscope/images.js';
@@ -70,7 +69,7 @@ router.get('/tasks/status/:taskId', async (req, res, next) => {
         const result = await getTaskStatus(taskId, wait);
 
         if (result.error && !result.data) return res.status(500).json(result);
-        return res.json({ watermark: FORGETMEAI_WATERMARK, ...result });
+        return res.json(result);
     } catch (error) {
         next(error);
     }
@@ -80,7 +79,6 @@ router.get('/images/models', (req, res, next) => {
     try {
         res.json({
             object: 'list',
-            watermark: FORGETMEAI_WATERMARK,
             data: [
                 {
                     id: CHAT_MEDIA_MODEL,
@@ -110,7 +108,6 @@ router.get('/images/models', (req, res, next) => {
 router.get('/videos/models', (req, res) => {
     res.json({
         object: 'list',
-        watermark: FORGETMEAI_WATERMARK,
         data: [{
             id: CHAT_MEDIA_MODEL,
             object: 'model',
@@ -129,7 +126,6 @@ router.get('/images/status', async (req, res, next) => {
         const dashScopeAvailable = await checkImageApiAvailability();
 
         res.json({
-            watermark: FORGETMEAI_WATERMARK,
             qwenChat: {
                 available: accounts.available > 0,
                 model: CHAT_MEDIA_MODEL,
@@ -155,7 +151,6 @@ router.get('/images/status', async (req, res, next) => {
 router.get('/videos/status', (req, res) => {
     const accounts = accountsSummary();
     res.json({
-        watermark: FORGETMEAI_WATERMARK,
         available: accounts.available > 0,
         model: CHAT_MEDIA_MODEL,
         accounts,

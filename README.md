@@ -28,12 +28,11 @@ http://localhost:3264/api
 - **Open WebUI**: можно подключить как OpenAI-compatible backend.
 - **Hermes Agent / LiteLLM / Claude Code**: готовые примеры конфигов для локальных AI-агентов.
 - **Health/smoke tooling**: `/api/health`, `/api/status`, `/api/models`, `npm run smoke`, `npm run models:sync`.
-- **ForgetMeAI branding**: watermark `t.me/forgetmeai` в README, CLI и health/media metadata.
 
 ## Быстрый старт
 
 ```bash
-git clone https://github.com/ForgetMeAI/FreeQwenApi
+git clone https://github.com/heymoma/FreeQwenApi
 cd FreeQwenApi
 npm install
 npm run auth
@@ -102,13 +101,12 @@ npm run auth -- --remove
 curl http://localhost:3264/api/health
 ```
 
-Ответ содержит количество моделей, аккаунтов и watermark:
+Ответ содержит количество моделей и аккаунтов:
 
 ```json
 {
   "ok": true,
   "service": "FreeQwenApi",
-  "watermark": "t.me/forgetmeai",
   "baseUrl": "/api",
   "models": 28
 }
@@ -179,7 +177,6 @@ curl http://localhost:3264/api/images/generations \
 ```json
 {
   "created": 1770000000,
-  "watermark": "t.me/forgetmeai",
   "provider": "qwen-chat",
   "model": "qwen3-vl-plus",
   "data": [

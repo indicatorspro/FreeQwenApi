@@ -2,7 +2,6 @@
 
 import { listAccounts } from '../src/core/accounts/store.js';
 import { addAccountInteractive, reloginAccountInteractive, removeAccountInteractive } from '../src/cli/accounts.js';
-import { formatForgetMeAiWatermark } from '../src/shared/branding.js';
 import { prompt } from '../src/cli/prompt.js';
 
 function printDivider() {
@@ -40,7 +39,6 @@ function printAccounts(tokens) {
 }
 
 function handleList(tokens) {
-    console.log(formatForgetMeAiWatermark());
     printAccounts(tokens);
     const active = tokens.filter(t => formatStatus(t).code === STATUS_CODES.OK);
     console.log(`\nАктивных аккаунтов: ${active.length} из ${tokens.length}`);
@@ -59,7 +57,6 @@ function parseArgs(argv) {
 function printHelp() {
     printDivider();
     console.log('Скрипт управления аккаунтами Qwen');
-    console.log(formatForgetMeAiWatermark());
     printDivider();
     console.log('Опции:');
     console.log('  --list      Показать список аккаунтов и статусы');
@@ -102,8 +99,7 @@ async function runInteractiveMenu() {
     while (true) {
         const tokens = listAccounts();
         printDivider();
-        console.log(formatForgetMeAiWatermark());
-        printAccounts(tokens);
+            printAccounts(tokens);
         printDivider();
         console.log('Меню:');
         console.log('1 - Добавить новый аккаунт');

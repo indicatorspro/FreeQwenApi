@@ -5,7 +5,6 @@ import path from 'path';
 
 import { logError, logInfo } from '../shared/logger.js';
 import { ACCOUNTS_DIR, ensureDir, safeJoin } from '../shared/paths.js';
-import { formatForgetMeAiWatermark } from '../shared/branding.js';
 import { prompt } from './prompt.js';
 import { getBrowserContext, initBrowser, shutdownBrowser } from '../browser/browser.js';
 import { extractAuthToken } from '../core/qwen/tokens.js';
@@ -42,7 +41,6 @@ function accountDir(id) {
 /** Открывает браузер, ждёт входа пользователя и сохраняет токен как новый аккаунт. */
 export async function addAccountInteractive() {
     logInfo('Добавление нового аккаунта Qwen');
-    logInfo(formatForgetMeAiWatermark());
     logInfo('Откроется браузер: войдите в аккаунт и вернитесь в консоль.');
 
     if (!await initBrowser(true, true)) {
@@ -152,7 +150,6 @@ export async function interactiveAccountMenu() {
     for (;;) {
         printAccounts();
         console.log('\n=== Управление аккаунтами ===');
-        console.log(formatForgetMeAiWatermark());
         console.log('1 - Добавить аккаунт');
         console.log('2 - Перелогинить аккаунт');
         console.log('3 - Удалить аккаунт');

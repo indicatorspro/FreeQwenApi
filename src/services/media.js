@@ -2,7 +2,6 @@
 // Основной путь — Qwen Chat (chatType t2i/t2v), альтернативный — DashScope.
 
 import { unixSeconds } from '../shared/ids.js';
-import { FORGETMEAI_WATERMARK } from '../shared/branding.js';
 import { logError, logInfo } from '../shared/logger.js';
 import { mapModel } from '../core/models/mapping.js';
 import { sendMessage } from '../core/qwen/client.js';
@@ -110,7 +109,6 @@ export async function generateImage({
 function buildImageResponse({ imageUrl, prompt, model, raw, provider = 'qwen-chat' }) {
     return {
         created: unixSeconds(),
-        watermark: FORGETMEAI_WATERMARK,
         provider,
         model,
         data: [{ url: imageUrl, revised_prompt: prompt }],
@@ -150,7 +148,6 @@ export async function generateVideo({ prompt, model, size = null, aspectRatio = 
         id: result.id || result.task_id || `video-${Date.now()}`,
         object: videoUrl ? 'video.generation' : 'video.generation.task',
         created: unixSeconds(),
-        watermark: FORGETMEAI_WATERMARK,
         provider: 'qwen-chat',
         model: chatModel,
         prompt,

@@ -1,7 +1,6 @@
 // Запуск прокси: стартовое меню, браузер, HTTP-сервер, корректное завершение.
 
 import { config } from '../config/index.js';
-import { FORGETMEAI_WATERMARK } from '../shared/branding.js';
 import { logError, logInfo } from '../shared/logger.js';
 import { accountsSummary, listAccounts } from '../core/accounts/store.js';
 import { getAvailableModels } from '../core/models/registry.js';
@@ -20,7 +19,6 @@ const BANNER = `
 ██      ██   ██ ███████ ███████  ██████   ███ ███  ███████ ██   ████ ██   ██ ██      ██
                                     ▀▀
    OpenAI-совместимый прокси к Qwen Chat
-   ${FORGETMEAI_WATERMARK}
 `;
 
 /** Проверяет, что есть с чем стартовать, когда меню пропущено. */
@@ -45,7 +43,6 @@ async function runStartupMenu() {
         printAccounts();
 
         console.log('\n=== Меню ===');
-        console.log(`ForgetMeAI: ${FORGETMEAI_WATERMARK}`);
         console.log('1 - Добавить новый аккаунт');
         console.log('2 - Перелогинить аккаунт с истёкшим токеном');
         console.log('3 - Запустить прокси (по умолчанию)');
