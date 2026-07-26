@@ -1,12 +1,21 @@
 {
     "name": "qwen-api-proxy",
-    "version": "1.0.0",
-    "description": "Прокси-сервер для доступа к Qwen API через эмуляцию браузера",
+    "version": "2.0.0",
+    "description": "Локальный OpenAI-совместимый прокси к Qwen Chat с поддержкой tool calling для агентов",
     "main": "index.js",
     "type": "module",
+    "engines": {
+        "node": ">=20"
+    },
     "scripts": {
         "start": "node index.js",
-        "test": "echo \"Ошибка: тест не задан\" && exit 1",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "lint": "eslint .",
+        "lint:fix": "eslint . --fix",
+        "auth": "node scripts/auth.js",
+        "models:sync": "node scripts/sync_models.js",
+        "smoke": "node scripts/smoke_test.js",
         "example:stream": "node examples/openai-sdk/streaming.js",
         "example:simple": "node examples/openai-sdk/simple.js",
         "example:system": "node examples/openai-sdk/system-message.js",
@@ -16,10 +25,7 @@
         "example:direct": "node examples/direct-api/fetch-example.js",
         "example:axios": "node examples/direct-api/axios-example.js",
         "example:file-upload": "node examples/file-upload/upload-example.js",
-        "example:streaming-test": "node examples/streaming-test.js",
-        "auth": "node scripts/auth.js",
-        "models:sync": "node scripts/sync_models.js",
-        "smoke": "node scripts/smoke_test.js"
+        "example:streaming-test": "node examples/streaming-test.js"
     },
     "dependencies": {
         "ali-oss": "^6.23.0",
@@ -35,5 +41,11 @@
         "puppeteer-extra": "^3.3.6",
         "puppeteer-extra-plugin-stealth": "^2.11.2",
         "winston": "^3.17.0"
+    },
+    "devDependencies": {
+        "@eslint/js": "^9.39.5",
+        "eslint": "^9.39.5",
+        "globals": "^17.8.0",
+        "vitest": "^3.2.7"
     }
 }
