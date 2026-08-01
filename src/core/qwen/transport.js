@@ -236,6 +236,27 @@ async function fetchPatchReady(page) {
 }
 
 /**
+ * Strong readiness signal: the webapp's Baxia runtime has generated its
+ * uidToken. The weak fetch-patch check (window.AWSC / fetch.length) passes
+ * before the signing key exists — firing the request then gets a real Qwen
+ * `Bad_Request` (signature validation failure), not a WAF captcha.
+ */
+async function baxiaSigningReady(page) {
+    try {
+        return await page.evaluate(() => {
+            try {
+                const fy = window.__baxia__?.getFYModule?.();
+                return Boolean(fy?.getUidToken?.());
+            } catch {
+                return false;
+            }
+        });
+    } catch {
+        return false;
+    }
+}
+
+/**
  * Reloads the page and waits until the webapp's fetch patch is actually ready.
  * Reused/pooled tabs get a stale fetch patch — completions hang or return
  * Bad_Request. A fixed settle after 'load' is unreliable: the patch can take
@@ -243,21 +264,64 @@ async function fetchPatchReady(page) {
  */
 async function reloadChatPage(page) {
     try {
-        await page.goto(config.qwen.chatPageUrl, { waitUntil: 'load', timeout: config.timeouts.page });
+        const currentUrl = page.url();
+        const isOnQwen = currentUrl.includes('chat.qwen.ai');
+
+        if (isOnQwen) {
+            // Reload in-place: preserves cookies/session while re-initializing
+            // the webapp's fetch patch. page.goto(chatPageUrl) navigates to the
+            // root landing page which renders logged-out and breaks auth.
+            await page.reload({ waitUntil: 'load', timeout: config.timeouts.page });
+        } else {
+            await page.goto(config.qwen.chatPageUrl, { waitUntil: 'load', timeout: config.timeouts.page });
+        }
     } catch (error) {
         logWarn(`requestViaBrowser: failed to reload chat page: ${error.message}`);
         return false;
     }
 
+    try {
+        const diagnostic = await page.evaluate(() => ({
+            href: location.href,
+            hasAwsc: Boolean(window.AWSC),
+            fetchLen: String(window.fetch).length,
+            hasBaxia: Boolean(window.__baxia__),
+            uidToken: Boolean(window.__baxia__?.getFYModule?.()?.getUidToken?.()),
+            hasToken: Boolean(localStorage.getItem('token')),
+            bodyStart: document.body?.innerText?.slice(0, 120) || ''
+        }));
+        logDebug(`requestViaBrowser: post-reload diagnostic ${JSON.stringify(diagnostic)}`);
+    } catch (error) {
+        logWarn(`requestViaBrowser: diagnostic failed: ${error.message}`);
+    }
+
     const deadline = Date.now() + config.timeouts.baxiaReady;
+    let patchSeen = false;
     while (Date.now() < deadline) {
-        if (await fetchPatchReady(page)) {
-            logDebug('requestViaBrowser: page reloaded, fetch patch ready');
+        if (await baxiaSigningReady(page)) {
+            logDebug('requestViaBrowser: page reloaded, baxia uidToken ready');
             return true;
+        }
+        if (await fetchPatchReady(page)) {
+            patchSeen = true;
+            // Patch is present but the signing key may still be generating.
+            // Give it a little more time before proceeding — a request fired
+            // too early gets a real Qwen Bad_Request (signature missing).
+            await new Promise(resolve => setTimeout(resolve, 500));
+            if (await baxiaSigningReady(page)) {
+                logDebug('requestViaBrowser: page reloaded, baxia uidToken ready (after settle)');
+                return true;
+            }
         }
         await new Promise(resolve => setTimeout(resolve, 250));
     }
 
+    // Headless never generates a uidToken. Fall back to the weak patch check
+    // so requests still go through — visible browser gets the strong wait.
+    if (patchSeen) {
+        logWarn('requestViaBrowser: baxia uidToken not ready; proceeding with fetch patch only');
+        return true;
+    }
     logWarn(`requestViaBrowser: fetch patch not ready after ${config.timeouts.baxiaReady} ms; failing fast instead of hanging`);
     return false;
 }
@@ -282,7 +346,10 @@ export async function requestViaBrowser({ page, url, payload, token, onChunk = n
 
     try {
         // Fresh page load before the request — the webapp's fetch patch must be
-        // fully initialized, otherwise the in-page fetch hangs or fails.
+        // fully initialized, otherwise the in-page fetch hangs or fails. Reused
+        // pooled tabs carry a stale patch; reloading guarantees a working one.
+        // reloadChatPage waits for the baxia uidToken (signing key) when the
+        // browser is visible, and falls back to the weak patch check otherwise.
         const reloaded = await reloadChatPage(page);
         if (!reloaded) {
             return { ok: false, error: 'browser fetch patch not initialized after page reload' };

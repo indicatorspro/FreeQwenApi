@@ -68,15 +68,18 @@ export async function handleFailure(response, account, options) {
     const errorBody = String(response.errorBody || '');
 
     // Aliyun WAF anti-bot challenge: captcha, TMD punish, rgv587.
+    // The token is still valid — do NOT mark the account invalid or clear the
+    // token. Reopen the browser visible mode with the account's session
+    // restored so the user only has to solve the captcha. Skip the headless
+    // restart: keeping the visible browser open preserves the WAF fingerprint
+    // and x5sec cookies, otherwise every next request gets challenged again.
     if (response.antiBot || isAntiBotChallenge(errorBody)) {
         logWarn('Aliyun WAF anti-bot challenge detected, restarting browser in visible mode');
         setAuthenticationStatus(false);
         await pagePool.clear();
-        clearAuthToken();
-        // Mark account as invalid so it won't be selected again.
-        if (account?.id && account.id !== 'browser') markInvalid(account.id);
+        const restoreAccountId = account?.id && account.id !== 'browser' ? account.id : null;
         await shutdownBrowser();
-        await initBrowser(true);
+        await initBrowser(true, true, restoreAccountId);
         return {
             error: 'Qwen anti-bot protection (captcha/WAF). Browser started in visible mode for verification.',
             antiBot: true,
@@ -88,9 +91,9 @@ export async function handleFailure(response, account, options) {
         setAuthenticationStatus(false);
         logInfo('Verification required, restarting browser in visible mode');
         await pagePool.clear();
-        clearAuthToken();
+        const restoreAccountId = account?.id && account.id !== 'browser' ? account.id : null;
         await shutdownBrowser();
-        await initBrowser(true);
+        await initBrowser(true, true, restoreAccountId);
         return {
             error: 'Verification required. Browser started in visible mode.',
             verification: true,
@@ -561,6 +564,34 @@ export async function sendMessage(options) {
             data.parentId = data.response_id;
             data.id = data.id || `chatcmpl-${Date.now()}`;
             data.streamed = response.streamed === true;
+
+            // Image/video generation: the SSE stream completes with empty content
+            // while usage signals media was produced (image_count, video_count).
+            // The actual URL arrives in trailing SSE chunks the accumulator
+            // normally discards — search the preserved rawChunks for it.
+            if (chatType === CHAT_TYPES.IMAGE || chatType === CHAT_TYPES.VIDEO) {
+                const content = data.choices?.[0]?.message?.content;
+                if (!content || !content.trim()) {
+                    const mediaType = chatType === CHAT_TYPES.IMAGE ? 'image' : 'video';
+                    const rawChunks = data.rawChunks || [];
+                    logDebug(`sendMessage: media generation with empty content — searching ${rawChunks.length} raw SSE chunks for ${mediaType} URL`);
+                    logRaw(`Raw SSE chunks: ${JSON.stringify(rawChunks).slice(0, 8000)}`);
+                    const mediaUrl = extractMediaUrl(rawChunks, mediaType);
+                    if (mediaUrl) {
+                        if (data.choices?.[0]?.message) {
+                            data.choices[0].message.content = mediaUrl;
+                        }
+                        data.media_url = mediaUrl;
+                        logInfo(`Media URL extracted from raw SSE chunks: ${mediaUrl}`);
+                    } else {
+                        logWarn(`Media URL not found in ${rawChunks.length} raw SSE chunks`);
+                    }
+                }
+            }
+
+            // Strip internal rawChunks before returning to the caller.
+            delete data.rawChunks;
+
             return data;
         }
 

@@ -9,9 +9,9 @@ import { logDebug, logError, logInfo, logWarn } from '../shared/logger.js';
 import { ACCOUNTS_DIR, ensureDir } from '../shared/paths.js';
 import { getAuthToken, setAuthToken } from '../core/qwen/authState.js';
 import { pagePool } from '../core/qwen/pagePool.js';
-import { saveAuthToken } from './session.js';
+import { hasSession, loadSession, saveAuthToken } from './session.js';
 import { applyStealthPatches } from './stealth.js';
-import { loadAccounts, saveAccounts } from '../core/accounts/store.js';
+import { getAccountById, loadAccounts, markValid, saveAccounts } from '../core/accounts/store.js';
 
 import fs from 'fs';
 import path from 'path';
@@ -24,10 +24,12 @@ let authenticated = false;
 
 /**
  * Launches browser or connects to already running Chrome via CDP.
+ * Returns the created/refreshed account id when a manual auth ran, otherwise `true`.
  * @param {boolean} [visibleMode] — headed mode for manual login/captcha
  * @param {boolean} [skipManualRestart] — don't restart in background after login
+ * @param {string|null} [restoreAccountId] — account whose session (cookies) to restore
  */
-export async function initBrowser(visibleMode = true, skipManualRestart = false) {
+export async function initBrowser(visibleMode = true, skipManualRestart = false, restoreAccountId = null) {
     if (browserInstance) return true;
 
     const cdpUrl = config.browser.cdpUrl;
@@ -49,15 +51,27 @@ export async function initBrowser(visibleMode = true, skipManualRestart = false)
         browserContext = page;
         logInfo('Browser initialized');
 
-        // Chrome connected via CDP already carries live user session —
-        // interactive login with captcha not needed.
+        // Restore the account session before the manual flow so the user only
+        // needs to solve the captcha — not log in a new account from scratch.
+        // Accounts may hold cookies (cookies.json) or just a token (token.txt);
+        // in the latter case inject the token into localStorage after navigation.
         if (visibleMode && !cdpUrl) {
-            await runManualAuthentication(page, skipManualRestart);
+            const restoreToken = restoreAccountId
+                ? getAccountById(restoreAccountId)?.token || null
+                : null;
+            if (restoreToken) setAuthToken(restoreToken);
+            if (restoreAccountId && hasSession(restoreAccountId)) {
+                await loadSession(page, restoreAccountId);
+                logInfo(`Session restored for account ${restoreAccountId}`);
+            }
+            return await runManualAuthentication(page, skipManualRestart, restoreAccountId, restoreToken) || true;
         }
 
         return true;
     } catch (error) {
         logError('Error during browser initialization', error);
+        browserInstance = null;
+        browserContext = null;
         return false;
     }
 }
@@ -102,6 +116,7 @@ function launchBrowser(visibleMode) {
         headless: !visibleMode,
         slowMo: visibleMode ? 30 : 0,
         executablePath: config.browser.chromePath,
+        userDataDir: config.browser.userDataDir,
         args,
         defaultViewport: { width: config.browser.viewportWidth, height: config.browser.viewportHeight },
         protocolTimeout: config.timeouts.protocol,
@@ -126,16 +141,20 @@ async function preparePage(page) {
     await applyStealthPatches(page);
 }
 
-/** Saves cookies from the current page into a new account directory. */
-async function saveAccountCookies(page) {
+/**
+ * Saves cookies from the current page into the account directory.
+ * Reuses `accountId` when given (captcha/verification refresh); otherwise
+ * creates a new account directory.
+ */
+async function saveAccountCookies(page, accountId = null) {
     try {
         const cookies = await page.cookies();
-        const accountId = `acc_${Date.now()}`;
-        const accountDir = path.join(ACCOUNTS_DIR, accountId);
+        const targetId = accountId || `acc_${Date.now()}`;
+        const accountDir = path.join(ACCOUNTS_DIR, targetId);
         ensureDir(accountDir);
         fs.writeFileSync(path.join(accountDir, 'cookies.json'), JSON.stringify(cookies, null, 2));
-        logInfo(`Cookies saved for account ${accountId}`);
-        return accountId;
+        logInfo(`Cookies saved for account ${targetId}`);
+        return targetId;
     } catch (error) {
         logError('Error saving cookies', error);
         return null;
@@ -159,21 +178,47 @@ function waitForEnter() {
     });
 }
 
-async function runManualAuthentication(page, skipRestart) {
+async function runManualAuthentication(page, skipRestart, restoreAccountId = null, restoreToken = null) {
     try {
-        logInfo('Opening page for manual authentication…');
+        logInfo(restoreAccountId
+            ? `Opening page for manual captcha/verification (account ${restoreAccountId})…`
+            : 'Opening page for manual authentication…');
         await page.goto(config.qwen.chatPageUrl, {
             waitUntil: 'networkidle2',
             timeout: config.timeouts.navigation
         });
         await delay(5000);
 
+        // Token-only account (no saved cookies): inject the token into
+        // localStorage and reload so the session is present before captcha.
+        const sessionRestored = restoreAccountId && hasSession(restoreAccountId);
+        if (restoreAccountId && restoreToken && !sessionRestored) {
+            try {
+                await page.evaluate((token) => localStorage.setItem('token', token), restoreToken);
+                logInfo(`Token injected into page for account ${restoreAccountId}, reloading…`);
+                await page.goto(config.qwen.chatPageUrl, {
+                    waitUntil: 'networkidle2',
+                    timeout: config.timeouts.navigation
+                });
+                await delay(5000);
+            } catch (error) {
+                logError('Error injecting token into page', error);
+            }
+        }
+
         console.log('------------------------------------------------------');
-        console.log('               AUTHENTICATION REQUIRED');
+        console.log(restoreAccountId
+            ? '              CAPTCHA / VERIFICATION REQUIRED'
+            : '               AUTHENTICATION REQUIRED');
         console.log('------------------------------------------------------');
-        console.log('1. Log in to Qwen Chat in the open browser');
-        console.log('2. Move the mouse naturally, do not rush');
-        console.log('3. Solve the captcha slider slowly');
+        if (restoreAccountId) {
+            console.log('1. The session was restored, do NOT log out');
+            console.log('2. Solve the captcha slider slowly');
+        } else {
+            console.log('1. Log in to Qwen Chat in the open browser');
+            console.log('2. Move the mouse naturally, do not rush');
+            console.log('3. Solve the captcha slider slowly');
+        }
         console.log('4. Wait for the main page to fully load');
         console.log('5. Press ENTER in this console');
         console.log('------------------------------------------------------');
@@ -205,18 +250,31 @@ async function runManualAuthentication(page, skipRestart) {
             }
         }
 
-        const accountId = await saveAccountCookies(page);
+        const accountId = await saveAccountCookies(page, restoreAccountId);
         if (accountId) {
             logInfo(`Session saved with id: ${accountId}`);
-            // Also add to tokens.json so account selection can use it
+            // Persist the token file alongside the cookies.
             const tokenValue = getAuthToken();
             if (tokenValue) {
-                const accounts = loadAccounts();
-                if (!accounts.some(a => a.token === tokenValue)) {
-                    accounts.push({ id: accountId, token: tokenValue, resetAt: null });
-                    saveAccounts(accounts);
-                    logInfo(`Account ${accountId} added to tokens.json`);
+                try {
+                    const accountDir = path.join(ACCOUNTS_DIR, accountId);
+                    ensureDir(accountDir);
+                    fs.writeFileSync(path.join(accountDir, 'token.txt'), tokenValue, 'utf8');
+                } catch (error) {
+                    logError('Error saving token.txt for account', error);
                 }
+            }
+            // Add or refresh the account record in tokens.json.
+            const accounts = loadAccounts();
+            const existing = accounts.find(account => account.id === accountId);
+            if (tokenValue && existing) {
+                // Refresh the existing account: new token, clear invalid/rate-limit.
+                markValid(accountId, tokenValue);
+                logInfo(`Account ${accountId} refreshed in tokens.json`);
+            } else if (tokenValue && !accounts.some(account => account.token === tokenValue)) {
+                accounts.push({ id: accountId, token: tokenValue, resetAt: null });
+                saveAccounts(accounts);
+                logInfo(`Account ${accountId} added to tokens.json`);
             }
         }
 
@@ -224,6 +282,7 @@ async function runManualAuthentication(page, skipRestart) {
         logInfo('Authentication complete');
 
         if (!skipRestart) await restartBrowserInHeadlessMode();
+        return accountId;
     } catch (error) {
         logError('Error during manual authentication', error);
         throw error;

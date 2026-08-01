@@ -149,7 +149,10 @@ export function buildChatPayload({
     messages.push(userMessage);
 
     const payload = {
-        stream,
+        // Video generation uses task polling (non-streaming), not SSE.
+        // Qwen returns a task_id immediately; the video URL comes via
+        // GET /api/v1/tasks/status/:taskId polling.
+        stream: chatType === CHAT_TYPES.VIDEO ? false : stream,
         version: QWEN_WEB_VERSION,
         incremental_output: INCREMENTAL_OUTPUT,
         chatId,

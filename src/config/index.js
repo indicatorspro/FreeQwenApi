@@ -159,6 +159,11 @@ export const config = Object.freeze({
         userAgent: env.USER_AGENT
             || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
         chromePath: env.CHROME_PATH || undefined,
+        // Optional persistent browser profile. Off by default: each launch uses a
+        // fresh temp profile and sessions are kept per account in
+        // session/accounts/<id>/cookies.json. Enable only if you want a single
+        // shared login kept across restarts (note: this blocks switching accounts).
+        userDataDir: (env.BROWSER_USER_DATA_DIR || '').trim() || undefined,
         // Qwen blocks headless automation: headed mode allows manual verification.
         visible: toBoolean(env.QWEN_VISIBLE),
         cdpUrl: (env.QWEN_CDP_URL || '').trim() || null,

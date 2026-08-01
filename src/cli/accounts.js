@@ -1,15 +1,9 @@
 // Interactive management of Qwen accounts from the console.
 
-import fs from 'fs';
-import path from 'path';
-
 import { logError, logInfo } from '../shared/logger.js';
-import { ACCOUNTS_DIR, ensureDir, safeJoin } from '../shared/paths.js';
 import { prompt } from './prompt.js';
-import { getBrowserContext, initBrowser, shutdownBrowser } from '../browser/browser.js';
-import { extractAuthToken } from '../core/qwen/tokens.js';
-import { loadAuthToken } from '../browser/session.js';
-import { accountStatus, listAccounts, loadAccounts, markValid, removeAccount, saveAccounts } from '../core/accounts/store.js';
+import { initBrowser, shutdownBrowser } from '../browser/browser.js';
+import { accountStatus, listAccounts, loadAccounts, removeAccount } from '../core/accounts/store.js';
 
 const STATUS_LABELS = {
     OK: '✅ OK',
@@ -32,44 +26,24 @@ export function printAccounts(accounts = listAccounts()) {
     });
 }
 
-function accountDir(id) {
-    const dir = safeJoin(ACCOUNTS_DIR, id);
-    if (!dir) throw new Error(`Invalid account id: ${id}`);
-    return ensureDir(dir);
-}
-
 /** Opens the browser, waits for the user to log in, and saves the token as a new account. */
 export async function addAccountInteractive() {
     logInfo('Adding a new Qwen account');
     logInfo('A browser will open: log in to the account and return to the console.');
 
-    if (!await initBrowser(true, true)) {
-        logError('Failed to launch the browser.');
-        return null;
-    }
-
-    let token = await extractAuthToken(getBrowserContext(), true);
-    if (!token) {
-        token = loadAuthToken();
-        if (token) logInfo('Token taken from the saved file.');
-    }
-
+    // initBrowser -> runManualAuthentication already saves the token, cookies
+    // and the tokens.json record for the new account. It returns the account id.
+    const accountId = await initBrowser(true, true);
     await shutdownBrowser();
 
-    if (!token) {
+    if (typeof accountId !== 'string') {
         logError('No token obtained, account not added.');
         return null;
     }
 
-    const id = `acc_${Date.now()}`;
-    fs.writeFileSync(path.join(accountDir(id), 'token.txt'), token, 'utf8');
-
     const accounts = loadAccounts();
-    accounts.push({ id, token, resetAt: null });
-    saveAccounts(accounts);
-
-    logInfo(`Account '${id}' added. Total accounts: ${accounts.length}`);
-    return id;
+    logInfo(`Account '${accountId}' added. Total accounts: ${accounts.length}`);
+    return accountId;
 }
 
 /** Updates the token of an account whose login has expired. */
@@ -95,22 +69,17 @@ export async function reloginAccountInteractive() {
     const account = broken[choice - 1];
     logInfo(`Re-authentication: ${account.id}`);
 
-    if (!await initBrowser(true, true)) {
-        logError('Failed to launch the browser.');
-        return;
-    }
-
-    const token = await extractAuthToken(getBrowserContext(), true);
+    // initBrowser -> runManualAuthentication restores the account session,
+    // refreshes cookies/token and marks the account valid.
+    const accountId = await initBrowser(true, true, account.id);
     await shutdownBrowser();
 
-    if (!token) {
+    if (typeof accountId !== 'string') {
         logError('Failed to extract token.');
         return;
     }
 
-    markValid(account.id, token);
-    fs.writeFileSync(path.join(accountDir(account.id), 'token.txt'), token, 'utf8');
-    logInfo(`Token updated: ${account.id}`);
+    logInfo(`Token updated: ${accountId}`);
 }
 
 export async function removeAccountInteractive() {
@@ -135,14 +104,8 @@ export async function removeAccountInteractive() {
     const confirm = await prompt(`Remove ${account.id}? (y/N): `);
     if (confirm.toLowerCase() !== 'y') return;
 
+    // removeAccount also deletes the account directory (token.txt/cookies.json).
     removeAccount(account.id);
-    try {
-        const dir = safeJoin(ACCOUNTS_DIR, account.id);
-        if (dir && fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
-    } catch (error) {
-        logError(`Failed to delete account directory ${account.id}`, error);
-    }
-
     logInfo(`Account ${account.id} removed.`);
 }
 

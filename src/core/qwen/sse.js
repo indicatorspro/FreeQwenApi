@@ -16,6 +16,8 @@ export class SseAccumulator {
         this.usage = null;
         this.finished = false;
         this.streamed = false;
+        /** @type {Array<object>} All parsed SSE chunks, for post-hoc media URL extraction. */
+        this.rawChunks = [];
         /** @type {{status: number, errorBody: string}|null} */
         this.error = null;
     }
@@ -31,8 +33,6 @@ export class SseAccumulator {
 
     /** Processes one SSE line. */
     feedLine(rawLine) {
-        if (this.finished || this.error) return;
-
         const line = String(rawLine || '').trim();
         if (!line || !line.startsWith('data:')) return;
 
@@ -50,6 +50,15 @@ export class SseAccumulator {
             // Broken chunk — continue reading stream.
             return;
         }
+
+        // Always collect raw chunks for post-hoc media URL extraction,
+        // even after the stream is marked finished — image/video URLs
+        // can arrive in trailing chunks after finish_reason.
+        if (chunk && typeof chunk === 'object') {
+            this.rawChunks.push(chunk);
+        }
+
+        if (this.finished || this.error) return;
 
         this.feedChunk(chunk);
     }
@@ -122,7 +131,8 @@ export class SseAccumulator {
                 finish_reason: 'stop'
             }],
             usage: this.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
-            response_id: this.responseId
+            response_id: this.responseId,
+            rawChunks: this.rawChunks
         };
     }
 }
