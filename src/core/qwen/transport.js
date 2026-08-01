@@ -13,33 +13,10 @@
 // Node-first/browser-first strategy controlled by config.network.nodeFetchFirst.
 
 import { config } from '../../config/index.js';
-import { logDebug, logWarn, logInfo } from '../../shared/logger.js';
-import { randomHex, uuid } from '../../shared/ids.js';
+import { logDebug, logWarn } from '../../shared/logger.js';
+import { randomHex } from '../../shared/ids.js';
 import { SseAccumulator, parseNonSseBody } from './sse.js';
 import { isAntiBotChallenge, isHtmlResponse, classifyBlockedResponse, formatDiagnostic } from './antibot.js';
-
-/** Timezone header for Qwen requests (e.g. "America/Sao_Paulo"). */
-function asciiTimezone() {
-    try {
-        return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-    } catch {
-        return 'UTC';
-    }
-}
-
-/** Builds headers matching ForgetMeAI's buildQwenRequestHeaders. */
-function buildBrowserHeaders(token) {
-    return {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${token}`,
-        'Timezone': asciiTimezone(),
-        'Version': '0.2.63',
-        'X-Accel-Buffering': 'no',
-        'X-Request-Id': uuid(),
-        'source': 'web'
-    };
-}
 
 /**
  * @typedef {object} TransportResult

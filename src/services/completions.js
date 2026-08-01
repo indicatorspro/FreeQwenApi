@@ -178,14 +178,12 @@ export async function runCompletion(request, { onContent = null } = {}) {
     const rawContent = response.choices?.[0]?.message?.content ?? '';
     let content = rawContent;
     let toolCalls = null;
-    let pending = '';
 
     if (filter) {
         const finished = filter.finish();
         // The response may have arrived non-streamed (JSON instead of SSE) — then the filter is empty.
         if (filter.text) {
             content = finished.content;
-            pending = finished.pending;
             toolCalls = finished.toolCalls;
         }
     }
@@ -195,7 +193,6 @@ export async function runCompletion(request, { onContent = null } = {}) {
         if (extracted) {
             toolCalls = extracted.calls;
             content = extracted.text;
-            pending = '';
         }
     }
 
@@ -222,14 +219,13 @@ export async function runCompletion(request, { onContent = null } = {}) {
             chatId = repaired.chatId ?? chatId;
             parent = repaired.parentId ?? parent;
             usage = repaired.usage || usage;
-            pending = '';
         }
     }
 
     const finalToolCalls = validated.calls.length > 0 ? validated.calls : null;
 
     // No tools found: `content` already contains the full raw response (including
-    // any held-back text), so we must NOT append `pending` again — that would duplicate it.
+    // any held-back text), so nothing extra needs appending.
 
     if (!finalToolCalls && validated.problems.length > 0) {
         logWarn(`Tool calls discarded: ${validated.problems.map(p => p.reason).join('; ')}`);

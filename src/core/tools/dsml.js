@@ -83,7 +83,7 @@ function normalizeToolCalls(calls) {
  * Ex: 〈tool_calls〉 → <tool_calls>
  */
 function normalizeDsmlTags(content) {
-    let text = stripCodeFences(content)
+    const text = stripCodeFences(content)
         // Replace Chinese angle brackets.
         .replace(/[〈《]/g, '<')
         .replace(/[〉》]/g, '>')
@@ -101,6 +101,7 @@ function normalizeDsmlTags(content) {
         const body = (closing ? inner.slice(1) : inner).trim();
 
         // Remove Chinese punctuation and control characters.
+        // eslint-disable-next-line no-control-regex -- \u0002 is a deliberate tool-call delimiter
         const searchable = body.replace(/[|｜！!、,;:※\u0002]+/g, ' ');
         const match = searchable.match(/(tool[_\s-]*calls|toolcalls|invoke|parameter)([\s\S]*)/i);
 
@@ -110,6 +111,7 @@ function normalizeDsmlTags(content) {
         const tagName = compactName === 'toolcalls' ? 'tool_calls' : compactName;
 
         let attrs = closing ? '' : (match[2] || '')
+            // eslint-disable-next-line no-control-regex -- \u0002 is a deliberate tool-call delimiter
             .replace(/[|｜！!、,;:※\u0002\s]+$/g, '')
             .replace(/\s+/g, ' ')
             .trim();

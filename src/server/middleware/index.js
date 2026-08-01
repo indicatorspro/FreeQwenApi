@@ -89,7 +89,7 @@ export function sameOriginOnly(req, res, next) {
 /**
  * Error handler: converts AppError to appropriate HTTP response.
  */
-export function errorHandler(err, req, res, next) {
+export function errorHandler(err, req, res, _next) {
     if (err instanceof AppError) {
         logWarn(`Request error: ${err.message} (${err.code})`);
         return res.status(err.status).json(err.toJSON());

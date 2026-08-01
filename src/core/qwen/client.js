@@ -246,7 +246,7 @@ async function tryStatelessCompletion({ context, account, content, model, system
         });
 
         logInfo('Stateless Qwen API v2 request (without chat creation)…');
-        logDebug(`Stateless payload: ${JSON.stringify(payload)}`);
+        logRaw(`Stateless payload: ${JSON.stringify(payload)}`);
 
         logDebug(`tryStatelessCompletion: executing chat request`);
         const response = await executeChatRequest({
@@ -465,7 +465,7 @@ export async function sendMessage(options) {
         });
 
         logInfo('Sending request to Qwen API v2…');
-        logDebug(`Payload: ${JSON.stringify(payload)}`);
+        logRaw(`Payload: ${JSON.stringify(payload)}`);
 
         logDebug(`sendMessage: executing chat request to ${config.qwen.chatApiUrl}?chat_id=${chatId}`);
         const response = await executeChatRequest({
