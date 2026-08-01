@@ -1,5 +1,5 @@
-// Сборка Express-приложения. Ничего не запускает — это позволяет поднимать
-// приложение в тестах без браузера и без прослушивания порта.
+// Assembles the Express application. Does not start anything — this allows the
+// app to be brought up in tests without a browser and without listening on a port.
 
 import express from 'express';
 import bodyParser from 'body-parser';

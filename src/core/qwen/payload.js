@@ -1,108 +1,186 @@
-// Сборка тела запроса к /api/v2/chat/completions.
+// Request payload construction for Qwen Chat API.
+//
+// Qwen API v2 expects specific payload format:
+// - chat_id, parent_id for conversation continuity
+// - messages array with role/content
+// - stream flag for SSE responses
+//
+// Stateless mode: no chat_id/parent_id for one-shot requests.
 
 import { uuid, unixSeconds } from '../../shared/ids.js';
-import { logDebug } from '../../shared/logger.js';
 
-/** Типы генерации Qwen Chat. */
+/** Chat types supported by Qwen. */
 export const CHAT_TYPES = Object.freeze({
-    TEXT: 't2t',
-    IMAGE: 't2i',
-    VIDEO: 't2v'
+    TEXT: 't2t',      // text-to-text
+    IMAGE: 't2i',     // text-to-image
+    VIDEO: 't2v'      // text-to-video
 });
 
 /**
- * @param {object} options
- * @param {string|Array} options.content — текст либо составное сообщение
- * @param {string} options.model
- * @param {string} options.chatId
- * @param {string|null} [options.parentId]
- * @param {Array} [options.files]
- * @param {string|null} [options.systemMessage]
- * @param {string} [options.chatType]
- * @param {string|null} [options.size] — соотношение сторон для медиа
+ * Models where thinking cannot be disabled (Qwen meta think_skip.enable=false,
+ * abilities.thinking=4 — "ActiveUncancellable"). The Qwen Chat web app always
+ * sends thinking_enabled:true for these; sending false is rejected by the
+ * backend with invalid_input.
+ */
+export const THINKING_LOCKED_MODELS = Object.freeze([
+    'qwen3.8-max-preview'
+]);
+
+/** @returns {boolean} whether the given model cannot skip thinking. */
+export function isThinkingLocked(model) {
+    return THINKING_LOCKED_MODELS.includes(String(model || ''));
+}
+
+/**
+ * Validates message content.
+ * @param {string|Array} message
+ * @returns {{ content: string|null, error: string|null }}
+ */
+export function validateMessageContent(message) {
+    if (!message) {
+        return { content: null, error: 'Message content is required' };
+    }
+
+    // Array format: extract last user message.
+    if (Array.isArray(message)) {
+        const userMessages = message.filter(m => m?.role === 'user');
+        const lastUser = userMessages[userMessages.length - 1];
+        const content = lastUser?.content;
+
+        if (!content) {
+            return { content: null, error: 'No user message found in messages array' };
+        }
+
+        // Handle content parts (multimodal).
+        if (Array.isArray(content)) {
+            const textParts = content.filter(p => p?.type === 'text').map(p => p.text);
+            return { content: textParts.join('\n') || null, error: textParts.length ? null : 'No text content found' };
+        }
+
+        return { content: String(content), error: null };
+    }
+
+    // String format.
+    const content = String(message).trim();
+    if (!content) {
+        return { content: null, error: 'Message content cannot be empty' };
+    }
+
+    return { content, error: null };
+}
+
+/**
+ * Builds standard chat payload for Qwen API v2.
+ *
+ * @param {object} params
+ * @param {string} params.content — message text
+ * @param {string} params.model
+ * @param {string|null} params.chatId
+ * @param {string|null} params.parentId
+ * @param {string|null} params.systemMessage
+ * @param {string} params.chatType — t2t/t2i/t2v
+ * @param {string|null} params.size — image/video size
+ * @param {boolean} params.stream
+ * @param {Array} params.files — uploaded file references
  * @returns {object}
  */
 export function buildChatPayload({
     content,
     model,
-    chatId,
+    chatId = null,
     parentId = null,
-    files = null,
     systemMessage = null,
     chatType = CHAT_TYPES.TEXT,
-    size = null
+    size = null,
+    stream = true,
+    files = null
 }) {
+    const messages = [];
+
+    // User message matching Heymoma format.
     const userMessageId = uuid();
     const assistantChildId = uuid();
-    const isVideo = chatType === CHAT_TYPES.VIDEO;
 
-    const featureConfig = {
-        thinking_enabled: isVideo,
-        output_schema: 'phase'
-    };
-    if (isVideo) {
-        featureConfig.research_mode = 'normal';
-        featureConfig.auto_thinking = true;
-        featureConfig.thinking_format = 'summary';
-        featureConfig.auto_search = true;
-    }
-
-    const message = {
+    const userMessage = {
         fid: userMessageId,
-        parentId,
-        parent_id: parentId,
+        parentId: parentId || '',
+        parent_id: parentId || null,
         role: 'user',
         content,
         chat_type: chatType,
         sub_chat_type: chatType,
         timestamp: unixSeconds(),
         user_action: 'chat',
+        model: '',
         models: [model],
         files: files || [],
         childrenIds: [assistantChildId],
         extra: { meta: { subChatType: chatType } },
-        feature_config: featureConfig
+        feature_config: {
+            thinking_enabled: isThinkingLocked(model),
+            output_schema: 'phase'
+        }
     };
+
+    messages.push(userMessage);
 
     const payload = {
-        // Видео приходит задачей, а не потоком.
-        stream: !isVideo,
+        stream,
+        version: '2.1',
         incremental_output: true,
+        chatId,
+        parentId: parentId || '',
         chat_id: chatId,
         chat_mode: 'normal',
-        messages: [message],
+        messages,
         model,
-        parent_id: parentId,
-        timestamp: unixSeconds()
+        parent_id: parentId || null,
+        timestamp: unixSeconds(),
+        headers: { 'X-Request-Id': uuid() }
     };
 
-    if (size) payload.size = size;
+    // Size for image/video generation.
+    if (size && (chatType === CHAT_TYPES.IMAGE || chatType === CHAT_TYPES.VIDEO)) {
+        payload.size = size;
+    }
+
+    // System message goes at top level (matching Heymoma/ForgetMeAI).
     if (systemMessage) {
         payload.system_message = systemMessage;
-        logDebug(`System message: ${String(systemMessage).slice(0, 100)}${systemMessage.length > 100 ? '…' : ''}`);
     }
 
     return payload;
 }
 
 /**
- * Проверяет структуру сообщения перед отправкой.
- * @returns {{content: string|Array}|{error: string}}
+ * Builds stateless payload (no chat_id/parent_id).
+ * Used for one-shot requests when QWEN_STATELESS_DIRECT=true.
+ *
+ * @param {object} params
+ * @param {string} params.content
+ * @param {string} params.model
+ * @param {string|null} params.systemMessage
+ * @param {boolean} params.stream
+ * @returns {object}
  */
-export function validateMessageContent(message) {
-    if (message === null || message === undefined) {
-        return { error: 'Сообщение не может быть пустым' };
+export function buildStatelessPayload({
+    content,
+    model,
+    systemMessage = null,
+    stream = true
+}) {
+    const messages = [];
+
+    if (systemMessage) {
+        messages.push({ role: 'system', content: systemMessage });
     }
-    if (typeof message === 'string') {
-        return { content: message };
-    }
-    if (Array.isArray(message)) {
-        const isValid = message.every(item =>
-            (item?.type === 'text' && typeof item.text === 'string') ||
-            (item?.type === 'image' && typeof item.image === 'string') ||
-            (item?.type === 'file' && typeof item.file === 'string')
-        );
-        return isValid ? { content: message } : { error: 'Некорректная структура составного сообщения' };
-    }
-    return { error: 'Неподдерживаемый формат сообщения' };
+
+    messages.push({ role: 'user', content });
+
+    return {
+        // No chat_id, parent_id, session_id — stateless request.
+        messages,
+        model,
+        stream
+    };
 }

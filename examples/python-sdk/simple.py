@@ -7,7 +7,7 @@ client = OpenAI(
 
 resp = client.chat.completions.create(
     model="qwen-max-latest",
-    messages=[{"role": "user", "content": "Привет! Напиши короткое приветствие."}],
+    messages=[{"role": "user", "content": "Hello! Write a short greeting."}],
 )
 
 print(resp.choices[0].message.content)

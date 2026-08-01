@@ -1,63 +1,63 @@
-# Настройка генерации изображений
+# Image Generation Setup
 
-## Получение API ключа DashScope777
+## Obtaining a DashScope API Key
 
-1. Зарегистрируйтесь на платформе Alibaba Cloud DashScope:
-   - Международный: https://dashscope.console.aliyun.com/
-   - Китай: https://dashscope.console.aliyun.com/
+1. Register on the Alibaba Cloud DashScope platform:
+   - International: https://dashscope.console.aliyun.com/
+   - China: https://dashscope.console.aliyun.com/
 
-2. Создайте API ключ в разделе "API Keys"
+2. Create an API key in the "API Keys" section
 
-3. Установите переменную окружения:
+3. Set the environment variable:
 
 ### Windows (cmd):
 ```cmd
-setx DASHSCOPE_API_KEY "ваш_api_ключ"
+setx DASHSCOPE_API_KEY "your_api_key"
 ```
 
 ### Windows (PowerShell):
 ```powershell
-[System.Environment]::SetEnvironmentVariable('DASHSCOPE_API_KEY', 'ваш_api_ключ', 'User')
+[System.Environment]::SetEnvironmentVariable('DASHSCOPE_API_KEY', 'your_api_key', 'User')
 ```
 
 ### Linux/Mac:
 ```bash
-export DASHSCOPE_API_KEY="ваш_api_ключ"
+export DASHSCOPE_API_KEY="your_api_key"
 ```
 
-### В Docker Compose:
-Добавьте в `docker-compose.yml`:
+### In Docker Compose:
+Add to `docker-compose.yml`:
 ```yaml
 environment:
-  - DASHSCOPE_API_KEY=ваш_api_ключ
+  - DASHSCOPE_API_KEY=your_api_key
 ```
 
-## Доступные модели
+## Available Models
 
-| Модель | Описание |
-|--------|----------|
-| `qwen-image-max` | Флагманская модель для сложных сцен с текстом |
-| `qwen-image-plus` | Универсальная модель (по умолчанию) |
-| `qwen-image` | Базовая модель |
-| `wan2.6-t2i` | Реалистичные сцены и фотография |
-| `wan2.5-t2i-preview` | Быстрая генерация реалистичных изображений |
-| `wan2.2-t2i-flash` | Самая быстрая модель с кастомным разрешением |
+| Model | Description |
+|-------|-------------|
+| `qwen-image-max` | Flagship model for complex scenes with text |
+| `qwen-image-plus` | Versatile model (default) |
+| `qwen-image` | Basic model |
+| `wan2.6-t2i` | Realistic scenes and photography |
+| `wan2.5-t2i-preview` | Fast realistic image generation |
+| `wan2.2-t2i-flash` | Fastest model with custom resolution |
 
-## Примеры использования
+## Usage Examples
 
-### Через cURL:
+### Via cURL:
 ```bash
 curl -X POST http://localhost:3264/api/images/generations \
   -H "Content-Type: application/json" \
   -d '{
-    "prompt": "Красивый закат над горами в стиле аниме",
+    "prompt": "Beautiful sunset over the mountains in anime style",
     "model": "qwen-image-plus",
     "n": 1,
     "size": "1024x1024"
   }'
 ```
 
-### Через OpenAI SDK:
+### Via OpenAI SDK:
 ```javascript
 import OpenAI from 'openai';
 
@@ -68,7 +68,7 @@ const openai = new OpenAI({
 
 const response = await openai.images.generate({
   model: 'qwen-image-plus',
-  prompt: 'Космическая станция на орбите Марса',
+  prompt: 'Space station orbiting Mars',
   n: 1,
   size: '1024x1024'
 });
@@ -76,48 +76,48 @@ const response = await openai.images.generate({
 console.log(response.data[0].url);
 ```
 
-### Через Open WebUI:
-1. Откройте настройки Open WebUI
-2. Перейдите в раздел «Изображения» (Images)
-3. Включите генерацию изображений
-4. Укажите:
-   - Базовый URL (Base URL): `http://localhost:3264/api`
-   - API-ключ (API Key): любой (если авторизация отключена)
-   - Модель (Model): `qwen-image-plus`
+### Via Open WebUI:
+1. Open Open WebUI settings
+2. Go to the "Images" section
+3. Enable image generation
+4. Specify:
+   - Base URL: `http://localhost:3264/api`
+   - API Key: any value (if authorization is disabled)
+   - Model: `qwen-image-plus`
 
-## Проверка статуса API
+## Checking API Status
 
 ```bash
 curl http://localhost:3264/api/images/status
 ```
 
-Ответ:
+Response:
 ```json
 {
   "available": true,
   "apiKeyConfigured": true,
-  "message": "API генерации изображений доступен"
+  "message": "Image generation API is available"
 }
 ```
 
-## Получение списка моделей
+## Getting the Model List
 
 ```bash
 curl http://localhost:3264/api/images/models
 ```
 
-## Поддерживаемые размеры
+## Supported Sizes
 
 - `512x512`
 - `768x768`
 - `960x960`
-- `1024x1024` (по умолчанию)
-- `1024x1792` (портрет)
-- `1792x1024` (ландшафт)
+- `1024x1024` (default)
+- `1024x1792` (portrait)
+- `1792x1024` (landscape)
 
-## Примечания
+## Notes
 
-- Wan модели (`wan2.*`) используют только асинхронный режим с опросом статуса
-- Qwen Image модели поддерживают как синхронный, так и асинхронный режим
-- Максимальное количество генераций за один запрос: 4
-- Время генерации: обычно 5-30 секунд в зависимости от модели и размера
+- Wan models (`wan2.*`) use asynchronous mode only with status polling
+- Qwen Image models support both synchronous and asynchronous modes
+- Maximum generations per request: 4
+- Generation time: typically 5–30 seconds depending on model and size

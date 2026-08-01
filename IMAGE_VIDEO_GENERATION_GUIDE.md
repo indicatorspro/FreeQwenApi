@@ -1,62 +1,62 @@
-# Руководство по генерации изображений и видео
+# Image and Video Generation Guide
 
-## Обзор
+## Overview
 
-Qwen API Proxy поддерживает три типа генерации контента через параметр `chatType`:
+Qwen API Proxy supports three types of content generation via the `chatType` parameter:
 
-- **Текстовый чат (t2t)** — обычный диалоговый AI, потоковый ответ (по умолчанию)
-- **Генерация изображений (t2i)** — text-to-image, потоковый ответ (~10–30 сек.)
-- **Генерация видео (t2v)** — text-to-video, система задач с polling (~30–120 сек.)
+- **Text chat (t2t)** — standard conversational AI, streaming response (default)
+- **Image generation (t2i)** — text-to-image, streaming response (~10–30 sec.)
+- **Video generation (t2v)** — text-to-video, task system with polling (~30–120 sec.)
 
-## Ключевые отличия
+## Key Differences
 
-| Функция | Текст (t2t) | Изображение (t2i) | Видео (t2v) |
+| Feature | Text (t2t) | Image (t2i) | Video (t2v) |
 | -------------------- | ------------------- | ---------------------------- | ------------------------------- |
-| **Тип запроса** | `stream: true` | `stream: true` | `stream: false` |
-| **Способ ответа** | Streaming SSE | Streaming SSE | Polling задачи |
-| **Время выполнения** | ~2–5 сек. | ~10–30 сек. | ~30–120 сек. |
-| **Где лежит URL** | N/A (текст) | `choices[0].message.content` | `video_url` / `content` |
-| **Polling на сервере** | Нет | Нет | Да (автоматически) |
-| **Task ID** | Нет | Нет | Да |
+| **Request type** | `stream: true` | `stream: true` | `stream: false` |
+| **Response method** | Streaming SSE | Streaming SSE | Task polling |
+| **Execution time** | ~2–5 sec. | ~10–30 sec. | ~30–120 sec. |
+| **Where the URL is** | N/A (text) | `choices[0].message.content` | `video_url` / `content` |
+| **Server-side polling** | No | No | Yes (automatic) |
+| **Task ID** | No | No | Yes |
 
 ---
 
-## Генерация изображений (t2i)
+## Image Generation (t2i)
 
-### Как это работает
+### How It Works
 
-1. Клиент отправляет POST-запрос с `chatType: "t2i"`
-2. Сервер создаёт чат с `stream: true`
-3. Сервер получает потоковый SSE-ответ с URL изображения
-4. URL изображения приходит в поле `content` потоковых chunks
-5. Сервер возвращает клиенту готовый URL
+1. Client sends a POST request with `chatType: "t2i"`
+2. Server creates a chat with `stream: true`
+3. Server receives a streaming SSE response with the image URL
+4. The image URL arrives in the `content` field of stream chunks
+5. Server returns the final URL to the client
 
-### Формат запроса
+### Request Format
 
 ```
 POST /api/chat
 Content-Type: application/json
 
 {
-  "message": "Описание изображения, которое нужно сгенерировать",
+  "message": "Description of the image to generate",
   "model": "qwen3-vl-plus",
   "chatType": "t2i",
   "size": "16:9"
 }
 ```
 
-### Параметры
+### Parameters
 
-| Параметр | Обязательный | Описание | Примеры значений |
+| Parameter | Required | Description | Example Values |
 | ---------- | -------- | ---------------------------------------- | --------------------------------------------- |
-| `message` | Да | Текстовое описание изображения | `"Закат над океаном с фиолетовыми облаками"` |
-| `model` | Нет | Модель для генерации (по умолчанию qwen-max-latest) | `qwen-max-latest`, `qwen3-vl-plus` |
-| `chatType` | Да | Должно быть `"t2i"` | `"t2i"` |
-| `size` | Нет | Соотношение сторон | `"16:9"`, `"9:16"`, `"1:1"`, `"4:3"` |
-| `chatId` | Нет | ID существующего чата для продолжения контекста | UUID из предыдущего ответа |
-| `parentId` | Нет | ID родительского сообщения | UUID из предыдущего ответа |
+| `message` | Yes | Text description of the image | `"Sunset over the ocean with purple clouds"` |
+| `model` | No | Model for generation (default qwen-max-latest) | `qwen-max-latest`, `qwen3-vl-plus` |
+| `chatType` | Yes | Must be `"t2i"` | `"t2i"` |
+| `size` | No | Aspect ratio | `"16:9"`, `"9:16"`, `"1:1"`, `"4:3"` |
+| `chatId` | No | ID of an existing chat to continue context | UUID from a previous response |
+| `parentId` | No | ID of the parent message | UUID from a previous response |
 
-### Ожидаемый ответ
+### Expected Response
 
 ```json
 {
@@ -88,9 +88,9 @@ Content-Type: application/json
 }
 ```
 
-Поле `content` содержит прямой URL на сгенерированное изображение. Обычно такие URL размещаются на `cdn.qwenlm.ai`.
+The `content` field contains a direct URL to the generated image. These URLs are typically hosted on `cdn.qwenlm.ai`.
 
-### Примеры
+### Examples
 
 **JavaScript (fetch):**
 
@@ -99,7 +99,7 @@ const response = await fetch("http://localhost:3264/api/chat", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({
-    message: "Красивый пейзаж: горы и озеро на рассвете",
+    message: "Beautiful landscape: mountains and a lake at dawn",
     model: "qwen3-vl-plus",
     chatType: "t2i",
     size: "16:9"
@@ -108,7 +108,7 @@ const response = await fetch("http://localhost:3264/api/chat", {
 
 const data = await response.json();
 const imageUrl = data.choices[0].message.content;
-console.log("Сгенерированное изображение:", imageUrl);
+console.log("Generated image:", imageUrl);
 ```
 
 **cURL:**
@@ -117,7 +117,7 @@ console.log("Сгенерированное изображение:", imageUrl);
 curl -X POST http://localhost:3264/api/chat \
   -H "Content-Type: application/json" \
   -d '{
-    "message": "Футуристический город ночью с неоновыми огнями",
+    "message": "Futuristic city at night with neon lights",
     "model": "qwen3-vl-plus",
     "chatType": "t2i",
     "size": "16:9"
@@ -128,7 +128,7 @@ curl -X POST http://localhost:3264/api/chat \
 
 ```powershell
 $body = @{
-    message = "Милый кот сидит на книжной полке"
+    message = "Cute cat sitting on a bookshelf"
     model = "qwen3-vl-plus"
     chatType = "t2i"
     size = "1:1"
@@ -138,70 +138,70 @@ $response = Invoke-RestMethod -Uri "http://localhost:3264/api/chat" `
     -Method Post -Body $body -ContentType "application/json"
 
 $imageUrl = $response.choices[0].message.content
-Write-Host "URL изображения: $imageUrl"
+Write-Host "Image URL: $imageUrl"
 ```
 
 ---
 
-## Генерация видео (t2v)
+## Video Generation (t2v)
 
-### Как это работает
+### How It Works
 
-Генерация видео поддерживает два режима polling:
+Video generation supports two polling modes:
 
-#### Режим 1: polling на стороне сервера (по умолчанию)
+#### Mode 1: Server-Side Polling (Default)
 
-Лучше для простых интеграций и коротких видео (<2 мин.).
+Best for simple integrations and short videos (<2 min.).
 
-1. Клиент отправляет запрос с `chatType: "t2v"` и `waitForCompletion: true` (по умолчанию)
-2. Сервер создаёт задачу — Qwen API возвращает `task_id`
-3. Сервер автоматически проверяет статус каждые 2 секунды (до 90 попыток = 3 мин.)
-4. Когда задача завершена, сервер возвращает клиенту URL видео
+1. Client sends a request with `chatType: "t2v"` and `waitForCompletion: true` (default)
+2. Server creates a task — Qwen API returns a `task_id`
+3. Server automatically checks status every 2 seconds (up to 90 attempts = 3 min.)
+4. When the task completes, the server returns the video URL to the client
 
-**Плюсы:** просто, один запрос, логика polling на клиенте не нужна.  
-**Минусы:** длинное HTTP-соединение, фиксированный таймаут 3 минуты.
+**Pros:** simple, single request, no client-side polling logic needed.
+**Cons:** long HTTP connection, fixed 3-minute timeout.
 
-#### Режим 2: polling на стороне клиента (ручной)
+#### Mode 2: Client-Side Polling (Manual)
 
-Лучше для длинных видео (>2 мин.), кастомных таймаутов и отображения прогресса в UI.
+Best for long videos (>2 min.), custom timeouts, and progress display in UI.
 
-1. Клиент отправляет запрос с `chatType: "t2v"` и `waitForCompletion: false`
-2. Сервер сразу возвращает `task_id` (~1–2 сек.)
-3. Клиент проверяет `GET /api/tasks/status/:taskId` каждые 2–5 секунд
-4. Когда задача завершена, клиент получает URL видео
+1. Client sends a request with `chatType: "t2v"` and `waitForCompletion: false`
+2. Server immediately returns `task_id` (~1–2 sec.)
+3. Client checks `GET /api/tasks/status/:taskId` every 2–5 seconds
+4. When the task completes, the client receives the video URL
 
-**Плюсы:** гибкий таймаут, отслеживание прогресса, лучше для долгих операций.  
-**Минусы:** нужна логика polling на клиенте.
+**Pros:** flexible timeout, progress tracking, better for long operations.
+**Cons:** requires client-side polling logic.
 
-### Формат запроса
+### Request Format
 
 ```
 POST /api/chat
 Content-Type: application/json
 
 {
-  "message": "Описание видео, которое нужно сгенерировать",
+  "message": "Description of the video to generate",
   "model": "qwen3-vl-plus",
   "chatType": "t2v",
   "size": "16:9"
 }
 ```
 
-### Параметры
+### Parameters
 
-| Параметр | Обязательный | Описание | Примеры значений |
+| Parameter | Required | Description | Example Values |
 | ------------------- | -------- | ----------------------------------------------------- | --------------------------------------------- |
-| `message` | Да | Текстовое описание видео | `"Волны океана на песчаном пляже на закате"` |
-| `model` | Да | Модель для генерации | `qwen3-vl-plus`, `qwen-max-latest` |
-| `chatType` | Да | Должно быть `"t2v"` | `"t2v"` |
-| `size` | Нет | Соотношение сторон (по умолчанию `"16:9"`) | `"16:9"`, `"9:16"`, `"1:1"`, `"4:3"` |
-| `waitForCompletion` | Нет | Сервер ждёт завершения задачи (по умолчанию `true`) | `true` / `false` |
-| `chatId` | Нет | ID существующего чата | UUID из предыдущего ответа |
-| `parentId` | Нет | ID родительского сообщения | UUID из предыдущего ответа |
+| `message` | Yes | Text description of the video | `"Ocean waves on a sandy beach at sunset"` |
+| `model` | Yes | Model for generation | `qwen3-vl-plus`, `qwen-max-latest` |
+| `chatType` | Yes | Must be `"t2v"` | `"t2v"` |
+| `size` | No | Aspect ratio (default `"16:9"`) | `"16:9"`, `"9:16"`, `"1:1"`, `"4:3"` |
+| `waitForCompletion` | No | Server waits for task completion (default `true`) | `true` / `false` |
+| `chatId` | No | ID of an existing chat | UUID from a previous response |
+| `parentId` | No | ID of the parent message | UUID from a previous response |
 
-**Важно:** размер видео указывается как соотношение сторон (например, `"16:9"`), а не как разрешение в пикселях.
+**Important:** video size is specified as an aspect ratio (e.g., `"16:9"`), not as pixel resolution.
 
-### Ожидаемый ответ
+### Expected Response
 
 ```json
 {
@@ -231,16 +231,16 @@ Content-Type: application/json
 }
 ```
 
-### Примеры
+### Examples
 
-**Polling на стороне сервера (по умолчанию):**
+**Server-Side Polling (Default):**
 
 ```javascript
 const response = await fetch("http://localhost:3264/api/chat", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({
-    message: "Спокойный океан с мягкими волнами на закате",
+    message: "Calm ocean with gentle waves at sunset",
     model: "qwen3-vl-plus",
     chatType: "t2v",
     size: "16:9"
@@ -249,22 +249,22 @@ const response = await fetch("http://localhost:3264/api/chat", {
 
 const data = await response.json();
 if (data.error) {
-  console.error("Не удалось сгенерировать видео:", data.error);
+  console.error("Failed to generate video:", data.error);
 } else {
   const videoUrl = data.video_url || data.choices[0].message.content;
-  console.log("Сгенерированное видео:", videoUrl);
+  console.log("Generated video:", videoUrl);
 }
 ```
 
-**Polling на стороне клиента:**
+**Client-Side Polling:**
 
 ```javascript
-// Шаг 1: создаём задачу (ответ приходит сразу)
+// Step 1: create the task (response arrives immediately)
 const taskResponse = await fetch("http://localhost:3264/api/chat", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({
-    message: "Тихий лес, солнечные лучи проходят сквозь деревья",
+    message: "Quiet forest, sunbeams passing through the trees",
     model: "qwen3-vl-plus",
     chatType: "t2v",
     size: "16:9",
@@ -273,13 +273,13 @@ const taskResponse = await fetch("http://localhost:3264/api/chat", {
 });
 
 const taskData = await taskResponse.json();
-console.log("Задача создана:", taskData.task_id);
+console.log("Task created:", taskData.task_id);
 
-// Шаг 2: проверяем статус до завершения
+// Step 2: poll status until completion
 const taskId = taskData.task_id;
 let videoUrl = null;
 let attempts = 0;
-const maxAttempts = 90; // максимум 3 минуты
+const maxAttempts = 90; // maximum 3 minutes
 
 while (attempts < maxAttempts && !videoUrl) {
   attempts++;
@@ -289,40 +289,40 @@ while (attempts < maxAttempts && !videoUrl) {
   const statusData = await statusResponse.json();
   const status = statusData.task_status || statusData.status;
 
-  console.log(`Попытка ${attempts}: ${status}`);
+  console.log(`Attempt ${attempts}: ${status}`);
 
   if (status === 'completed' || status === 'succeeded') {
     videoUrl = statusData.content || statusData.data?.content;
-    console.log("Видео готово:", videoUrl);
+    console.log("Video ready:", videoUrl);
   } else if (status === 'failed' || status === 'error') {
-    console.error("Задача завершилась ошибкой");
+    console.error("Task ended with an error");
     break;
   }
 }
 ```
 
-**cURL (polling на стороне сервера):**
+**cURL (Server-Side Polling):**
 
 ```bash
 curl -X POST http://localhost:3264/api/chat \
   --max-time 200 \
   -H "Content-Type: application/json" \
   -d '{
-    "message": "Птица летит над лесом",
+    "message": "A bird flying over the forest",
     "model": "qwen3-vl-plus",
     "chatType": "t2v",
     "size": "16:9"
   }'
 ```
 
-**cURL (polling на стороне клиента):**
+**cURL (Client-Side Polling):**
 
 ```bash
-# Шаг 1: создаём задачу
+# Step 1: create the task
 TASK_ID=$(curl -s -X POST http://localhost:3264/api/chat \
   -H "Content-Type: application/json" \
   -d '{
-    "message": "Волны океана на закате",
+    "message": "Ocean waves at sunset",
     "model": "qwen3-vl-plus",
     "chatType": "t2v",
     "size": "16:9",
@@ -331,10 +331,10 @@ TASK_ID=$(curl -s -X POST http://localhost:3264/api/chat \
 
 echo "Task ID: $TASK_ID"
 
-# Шаг 2: проверяем статус
+# Step 2: poll status
 while true; do
   STATUS=$(curl -s "http://localhost:3264/api/tasks/status/$TASK_ID" | jq -r '.task_status')
-  echo "Статус: $STATUS"
+  echo "Status: $STATUS"
   [ "$STATUS" = "completed" ] && break
   sleep 2
 done
@@ -342,92 +342,92 @@ done
 
 ---
 
-## Сравнение: изображения и видео
+## Comparison: Images vs. Video
 
-| Функция | Изображение (t2i) | Видео (t2v) |
+| Feature | Image (t2i) | Video (t2v) |
 | ------------------- | ---------------------------- | ----------------------------------- |
-| **Тип чата** | `"t2i"` | `"t2v"` |
-| **Способ ответа** | Streaming | Polling задачи |
-| **Обычная длительность** | 10–30 секунд | 30–120 секунд |
-| **Поле ответа** | `choices[0].message.content` | `video_url` или `content` |
-| **Формат файла** | `.jpg` / `.png` | `.mp4` |
-| **Stream** | `true` (автоматически) | `false` (автоматически) |
-| **Polling** | N/A | 90 попыток × 2 сек. = максимум 3 мин. |
-| **Таймаут клиента** | 30–60 секунд | 120–200 секунд |
+| **Chat type** | `"t2i"` | `"t2v"` |
+| **Response method** | Streaming | Task polling |
+| **Typical duration** | 10–30 seconds | 30–120 seconds |
+| **Response field** | `choices[0].message.content` | `video_url` or `content` |
+| **File format** | `.jpg` / `.png` | `.mp4` |
+| **Stream** | `true` (automatic) | `false` (automatic) |
+| **Polling** | N/A | 90 attempts × 2 sec. = max 3 min. |
+| **Client timeout** | 30–60 seconds | 120–200 seconds |
 
 ---
 
-## Рекомендации
+## Recommendations
 
-### Генерация изображений
+### Image Generation
 
-1. **Подробные prompts** — указывайте стиль, цвета, настроение и композицию
-2. **Рекомендованные модели** — `qwen3-vl-plus` (быстро, хорошее качество), `qwen-max-latest`
-3. **Соотношения сторон** — `"1:1"`, `"16:9"`, `"9:16"`, `"4:3"`, `"3:4"`
-4. **Таймаут клиента** — минимум 60 секунд
+1. **Detailed prompts** — specify style, colors, mood, and composition
+2. **Recommended models** — `qwen3-vl-plus` (fast, good quality), `qwen-max-latest`
+3. **Aspect ratios** — `"1:1"`, `"16:9"`, `"9:16"`, `"4:3"`, `"3:4"`
+4. **Client timeout** — at least 60 seconds
 
-### Генерация видео
+### Video Generation
 
-1. **Описывайте движение** — пишите про движение и изменения, а не только статичную сцену
-2. **Не усложняйте** — фокусируйтесь на одном главном действии/движении
-3. **Соотношения сторон** — `"16:9"` (по умолчанию), `"9:16"`, `"1:1"`, `"4:3"`
-4. **Таймаут клиента** — минимум 200 секунд
-5. **Терпение** — обычно генерация занимает 1–2 минуты
+1. **Describe motion** — write about movement and changes, not just a static scene
+2. **Keep it simple** — focus on one main action/movement
+3. **Aspect ratios** — `"16:9"` (default), `"9:16"`, `"1:1"`, `"4:3"`
+4. **Client timeout** — at least 200 seconds
+5. **Be patient** — generation typically takes 1–2 minutes
 
 ---
 
-## Обработка ошибок
+## Error Handling
 
-### Таймаут
+### Timeout
 
 ```json
 { "error": "Task polling timeout exceeded", "status": "timeout", "task_id": "..." }
 ```
 
-Повторите запрос или переключитесь на polling на стороне клиента с большим числом попыток.
+Retry the request or switch to client-side polling with a higher attempt count.
 
-### Task ID не найден
+### Task ID Not Found
 
 ```json
 { "error": "Task ID not found in response" }
 ```
 
-Проверьте статус Qwen API — это может быть временная проблема.
+Check the Qwen API status — this may be a temporary issue.
 
-### Rate limit
+### Rate Limit
 
 ```json
 { "error": "RateLimited", "detail": "You've reached the upper limit for today's usage." }
 ```
 
-Дождитесь сброса дневного лимита или добавьте больше аккаунтов.
+Wait for the daily limit to reset or add more accounts.
 
 ---
 
-## Тестирование
+## Testing
 
-Запустите встроенные тестовые скрипты:
+Run the built-in test scripts:
 
 ```bash
-# Проверить все три типа генерации (чат, изображение, видео)
+# Test all three generation types (chat, image, video)
 npm run test:features
 
-# Сравнить server-side и client-side polling для видео
+# Compare server-side and client-side polling for video
 npm run test:video-polling
 ```
 
 ---
 
-## Примечания
+## Notes
 
-1. Сгенерированные URL временные — скачивайте файлы, если они нужны надолго
-2. Более высокие разрешения генерируются дольше
-3. Несколько параллельных запросов работают через систему нескольких аккаунтов
-4. Используйте `chatId` и `parentId`, чтобы генерировать связанные изображения/видео в контексте
+1. Generated URLs are temporary — download files if you need them long-term
+2. Higher resolutions take longer to generate
+3. Multiple parallel requests work through the multi-account system
+4. Use `chatId` and `parentId` to generate related images/videos in context
 
-## Связанные эндпоинты
+## Related Endpoints
 
-- `POST /api/chat` — текстовый чат (`chatType: "t2t"`, по умолчанию), изображение (`"t2i"`), видео (`"t2v"`)
-- `GET /api/tasks/status/:taskId` — проверить статус задачи генерации видео
-- `GET /api/models` — получить список доступных моделей
-- `POST /api/files/upload` — загрузить файлы для анализа
+- `POST /api/chat` — text chat (`chatType: "t2t"`, default), image (`"t2i"`), video (`"t2v"`)
+- `GET /api/tasks/status/:taskId` — check video generation task status
+- `GET /api/models` — get the list of available models
+- `POST /api/files/upload` — upload files for analysis

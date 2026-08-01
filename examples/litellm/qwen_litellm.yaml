@@ -1,6 +1,6 @@
-# Мост LiteLLM для цепочки Claude Code -> FreeQwenApi -> Qwen Chat
-# Сначала запустите FreeQwenApi: SKIP_ACCOUNT_MENU=true npm start
-# Потом запустите LiteLLM: litellm --config examples/litellm/qwen_litellm.yaml --host 127.0.0.1 --port 4000
+# LiteLLM bridge for the chain Claude Code -> FreeQwenApi -> Qwen Chat
+# First start FreeQwenApi: SKIP_ACCOUNT_MENU=true npm start
+# Then start LiteLLM: litellm --config examples/litellm/qwen_litellm.yaml --host 127.0.0.1 --port 4000
 
 model_list:
   - model_name: qwen3.7-max

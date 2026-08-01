@@ -1,11 +1,11 @@
-// Разбор SSE-потока Qwen Chat.
+// Parsing of the Qwen Chat SSE stream.
 //
-// Раньше этот парсер существовал в двух копиях: одна в Node-ветке, вторая —
-// строкой внутри page.evaluate. Копии успели разойтись (браузерная не умела
-// отдавать чанки наружу), поэтому стриминг работал только на одном из двух
-// путей. Теперь разбор один, а браузер отдаёт наружу сырые строки.
+// Previously this parser existed in two copies: one in the Node branch, the second —
+// as a string inside page.evaluate. The copies diverged (the browser one could not
+// emit chunks outward), so streaming worked only on one of the two paths.
+// Now the parsing is shared, and the browser emits raw strings outward.
 
-/** Итог разбора потока. */
+/** Result of stream parsing. */
 export class SseAccumulator {
     /** @param {{onChunk?: (chunk: string) => void}} [options] */
     constructor({ onChunk = null } = {}) {
@@ -20,7 +20,7 @@ export class SseAccumulator {
         this.error = null;
     }
 
-    /** Обрабатывает произвольный кусок текста потока. */
+    /** Processes arbitrary chunk of stream text. */
     feedText(text) {
         if (!text) return;
         this.buffer += text;
@@ -29,7 +29,7 @@ export class SseAccumulator {
         for (const line of lines) this.feedLine(line);
     }
 
-    /** Обрабатывает одну строку SSE. */
+    /** Processes one SSE line. */
     feedLine(rawLine) {
         if (this.finished || this.error) return;
 
@@ -47,14 +47,14 @@ export class SseAccumulator {
         try {
             chunk = JSON.parse(payload);
         } catch {
-            // Битый чанк — поток продолжаем читать.
+            // Broken chunk — continue reading stream.
             return;
         }
 
         this.feedChunk(chunk);
     }
 
-    /** Обрабатывает уже разобранный чанк. */
+    /** Processes already parsed chunk. */
     feedChunk(chunk) {
         if (!chunk || typeof chunk !== 'object') return;
 
@@ -77,17 +77,30 @@ export class SseAccumulator {
         if (!choice) return;
 
         const delta = choice.delta;
-        if (delta?.content) {
+        if (!delta) return;
+
+        // Qwen streams thinking before the answer when thinking_enabled is true.
+        // Phases: "think"/"DeepThinking"/"thinking_summary"/"KeepAlive" carry
+        // reasoning; only "answer" (or a phase-less chunk, for non-thinking
+        // models) carries the final answer the client should see.
+        const phase = delta.phase;
+        const isAnswer = !phase || phase === 'answer';
+        if (isAnswer && delta.content) {
             this.content += delta.content;
             if (this.onChunk) {
                 this.onChunk(delta.content);
                 this.streamed = true;
             }
         }
-        if (delta?.status === 'finished' || choice.finish_reason) this.finished = true;
+        // A `status: "finished"` chunk only marks the end of the current phase.
+        // Thinking phases (think/DeepThinking/thinking_summary/KeepAlive) end
+        // with status "finished" while the answer phase still follows — so only
+        // treat it as stream-end on the answer phase (or a phase-less chunk,
+        // as non-thinking models send).
+        if (choice.finish_reason || (delta.status === 'finished' && isAnswer)) this.finished = true;
     }
 
-    /** Дочитывает остаток буфера (поток закончился без перевода строки). */
+    /** Reads the remaining buffer (the stream ended without a newline). */
     flush() {
         if (this.buffer) {
             const rest = this.buffer;
@@ -96,7 +109,7 @@ export class SseAccumulator {
         }
     }
 
-    /** Ответ в формате chat.completion. */
+    /** Response in chat.completion format. */
     toCompletion(model) {
         return {
             id: this.responseId || `chatcmpl-${Date.now()}`,
@@ -115,8 +128,8 @@ export class SseAccumulator {
 }
 
 /**
- * Разбирает не-SSE ответ с кодом 200.
- * Qwen регулярно отвечает JSON-ом с success=false и HTTP 200.
+ * Parses a non-SSE response with status code 200.
+ * Qwen regularly responds with JSON containing success=false and HTTP 200.
  * @returns {{ok: true, data: object} | {ok: false, status?: number, errorBody: string, error?: string}}
  */
 export function parseNonSseBody(body) {
@@ -140,7 +153,7 @@ export function parseNonSseBody(body) {
             return { ok: true, data: parsed };
         }
     } catch {
-        // Не JSON — ниже вернём общую ошибку.
+        // Not JSON — a generic error will be returned below.
     }
 
     return { ok: false, error: 'Unexpected non-SSE 200 response', errorBody: body };

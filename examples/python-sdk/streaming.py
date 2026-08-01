@@ -7,7 +7,7 @@ client = OpenAI(
 
 stream = client.chat.completions.create(
     model="qwen-max-latest",
-    messages=[{"role": "user", "content": "Напиши мини-историю про робота."}],
+    messages=[{"role": "user", "content": "Write a mini-story about a robot."}],
     stream=True,
 )
 

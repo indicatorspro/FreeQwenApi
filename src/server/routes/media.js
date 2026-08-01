@@ -1,4 +1,4 @@
-// Генерация изображений и видео + статус долгих задач.
+// Image and video generation + long task status.
 
 import express from 'express';
 
@@ -8,27 +8,31 @@ import { checkImageApiAvailability, getAvailableImageModels } from '../../core/d
 import { config } from '../../config/index.js';
 import { getTaskStatus } from '../../core/qwen/client.js';
 import { CHAT_MEDIA_MODEL, generateImage, generateVideo } from '../../services/media.js';
+import { sendApiResultError } from '../apiErrors.js';
 
 const router = express.Router();
 
-/** POST /api/images/generations — по умолчанию через Qwen Chat, без API-ключей. */
+/** POST /api/images/generations — by default via Qwen Chat, no API keys. */
 router.post('/images/generations', async (req, res, next) => {
     try {
         const { prompt, model, n, size, provider, aspect_ratio: aspectRatio } = req.body || {};
 
-        if (!prompt) return res.status(400).json({ error: 'Параметр "prompt" обязателен' });
-        logInfo('Запрос на генерацию изображения');
+        if (!prompt) {
+            return sendApiResultError(res, { error: 'Parameter "prompt" is required', invalidRequest: true });
+        }
+        logInfo('Image generation request');
 
         if (provider === 'dashscope' && !config.qwen.dashscopeApiKey) {
-            return res.status(503).json({
-                error: 'DashScope API не настроен',
-                message: 'Задайте DASHSCOPE_API_KEY или используйте provider=qwen-chat'
+            return sendApiResultError(res, {
+                error: 'DashScope API not configured',
+                details: 'Set DASHSCOPE_API_KEY or use provider=qwen-chat',
+                status: 503
             });
         }
 
         const result = await generateImage({ prompt, model, size, aspectRatio, provider, n });
         if (result.error) {
-            return res.status(result.status || 500).json(result);
+            return sendApiResultError(res, result);
         }
         return res.json(result);
     } catch (error) {
@@ -36,13 +40,15 @@ router.post('/images/generations', async (req, res, next) => {
     }
 });
 
-/** POST /api/videos/generations — генерация видео через Qwen Chat. */
+/** POST /api/videos/generations — video generation via Qwen Chat. */
 router.post('/videos/generations', async (req, res, next) => {
     try {
         const { prompt, model, size, wait, waitForCompletion, aspect_ratio: aspectRatio } = req.body || {};
 
-        if (!prompt) return res.status(400).json({ error: 'Параметр "prompt" обязателен' });
-        logInfo('Запрос на генерацию видео');
+        if (!prompt) {
+            return sendApiResultError(res, { error: 'Parameter "prompt" is required', invalidRequest: true });
+        }
+        logInfo('Video generation request');
 
         const result = await generateVideo({
             prompt,
@@ -52,23 +58,25 @@ router.post('/videos/generations', async (req, res, next) => {
             waitForCompletion: waitForCompletion ?? wait ?? true
         });
 
-        if (result.error) return res.status(500).json(result);
+        if (result.error) return sendApiResultError(res, result);
         return res.json(result);
     } catch (error) {
         next(error);
     }
 });
 
-/** GET /api/tasks/status/:taskId — статус долгой задачи. */
+/** GET /api/tasks/status/:taskId — status of a long-running task. */
 router.get('/tasks/status/:taskId', async (req, res, next) => {
     try {
         const { taskId } = req.params;
-        if (!taskId) return res.status(400).json({ error: 'taskId обязателен' });
+        if (!taskId) {
+            return sendApiResultError(res, { error: 'taskId is required', invalidRequest: true });
+        }
 
         const wait = ['1', 'true', 'yes'].includes(String(req.query.wait || '').toLowerCase());
         const result = await getTaskStatus(taskId, wait);
 
-        if (result.error && !result.data) return res.status(500).json(result);
+        if (result.error && !result.data) return sendApiResultError(res, result);
         return res.json(result);
     } catch (error) {
         next(error);
@@ -130,17 +138,17 @@ router.get('/images/status', async (req, res, next) => {
                 available: accounts.available > 0,
                 model: CHAT_MEDIA_MODEL,
                 message: accounts.available > 0
-                    ? 'Генерация изображений через Qwen Chat доступна'
-                    : 'Нет активных аккаунтов Qwen Chat'
+                    ? 'Image generation via Qwen Chat is available'
+                    : 'No active Qwen Chat accounts'
             },
             dashscope: {
                 available: dashScopeAvailable,
                 apiKeyConfigured: Boolean(config.qwen.dashscopeApiKey),
                 message: dashScopeAvailable
-                    ? 'DashScope доступен'
+                    ? 'DashScope is available'
                     : config.qwen.dashscopeApiKey
-                        ? 'DashScope недоступен или ключ неверен'
-                        : 'DASHSCOPE_API_KEY не задан'
+                        ? 'DashScope is unavailable or the key is invalid'
+                        : 'DASHSCOPE_API_KEY is not set'
             }
         });
     } catch (error) {
@@ -155,8 +163,8 @@ router.get('/videos/status', (req, res) => {
         model: CHAT_MEDIA_MODEL,
         accounts,
         message: accounts.available > 0
-            ? 'Генерация видео через Qwen Chat доступна'
-            : 'Нет активных аккаунтов Qwen Chat'
+            ? 'Video generation via Qwen Chat is available'
+            : 'No active Qwen Chat accounts'
     });
 });
 

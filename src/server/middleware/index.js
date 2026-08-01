@@ -1,116 +1,143 @@
-// Middleware HTTP-слоя.
+// HTTP layer middleware.
 
 import { shortHash } from '../../shared/ids.js';
 import { logError, logWarn } from '../../shared/logger.js';
 import { getApiKeys } from '../../core/apiKeys.js';
 import { AppError } from '../../shared/errors.js';
+import { isOriginAllowed, normalizeOrigin } from '../../shared/originPolicy.js';
+import { matchesAnyCredential, fingerprintCredential } from '../../shared/security.js';
 
-/** Проверка ключа доступа к прокси. Пустой список ключей отключает проверку. */
+/** Proxy access key check. Empty key list disables check. */
 export function apiKeyAuth(req, res, next) {
     const keys = getApiKeys();
     if (keys.length === 0) return next();
 
     const header = req.headers.authorization;
     if (!header || !header.startsWith('Bearer ')) {
-        logWarn('Запрос без заголовка авторизации');
-        return res.status(401).json({ error: 'Требуется авторизация' });
+        logWarn('Request without authorization header');
+        return res.status(401).json({ error: 'Authorization required' });
     }
 
-    if (!keys.includes(header.slice(7).trim())) {
-        logWarn('Предоставлен недействительный ключ');
-        return res.status(401).json({ error: 'Недействительный токен' });
+    const token = header.slice(7).trim();
+
+    // Timing-safe: response time doesn't depend on which byte mismatched.
+    if (!matchesAnyCredential(token, keys)) {
+        logWarn(`Invalid key provided (fingerprint: ${fingerprintCredential(token)})`);
+        return res.status(401).json({ error: 'Invalid token' });
     }
 
     return next();
 }
 
 /**
- * Убирает версию из пути: /api/v1/chat/completions → /api/chat/completions.
- * Клиенты OpenAI SDK жёстко добавляют /v1, поэтому обрабатываем оба варианта.
+ * Removes version from path: /api/v1/chat/completions → /api/chat/completions.
+ * OpenAI SDK clients hardcode /v1, so we handle both variants.
  */
 export function stripVersionPrefix(req, res, next) {
     req.url = req.url.replace(/\/v[12](?=\/|$)/g, '').replace(/\/+/g, '/');
     next();
 }
 
+/**
+ * CORS: allows requests from loopback origins and explicitly listed in ALLOWED_ORIGINS.
+ * Non-browser clients (curl, SDK) don't send Origin and always pass.
+ */
 export function cors(req, res, next) {
-    res.header('Access-Control-Allow-Origin', '*');
+    const origin = req.get('origin');
+
+    if (origin && !isOriginAllowed(origin)) {
+        logWarn(`Request from disallowed origin: ${normalizeOrigin(origin)}`);
+        return res.status(403).json({ error: 'Origin not allowed' });
+    }
+
+    // Allow specific origin (or * for non-browser).
+    res.header('Access-Control-Allow-Origin', origin ? normalizeOrigin(origin) : '*');
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    res.header('Vary', 'Origin');
+
     if (req.method === 'OPTIONS') return res.sendStatus(200);
     next();
 }
 
 /**
- * Управление аккаунтами содержит токены Qwen, поэтому доступно только с
- * localhost: HOST=0.0.0.0 слушает все интерфейсы, включая локальную сеть.
+ * Account management contains Qwen tokens, so available only from
+ * localhost: HOST=0.0.0.0 listens all interfaces, including local network.
  */
 export function localOnly(req, res, next) {
     const ip = req.socket?.remoteAddress || '';
     if (ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1') return next();
-    logWarn(`Отклонён не-локальный доступ к управлению аккаунтами с ${ip}`);
-    return res.status(403).json({ error: 'Управление аккаунтами доступно только с localhost' });
+    logWarn(`Rejected non-local access to account management from ${ip}`);
+    return res.status(403).json({ error: 'Account management available only from localhost' });
 }
 
 /**
- * Защита от CSRF: заголовок ACAO:* разрешает cross-origin запросы, поэтому
- * мутирующие вызовы принимаем только со своего origin.
+ * CSRF protection: ACAO:* header allows cross-origin requests, so
+ * mutating calls accepted only from own origin.
  */
 export function sameOriginOnly(req, res, next) {
     const origin = req.get('origin');
     if (!origin) return next();
 
-    // Расширения браузера ставит сам пользователь, и подделать *-extension://
-    // веб-страница не может — это не вектор CSRF.
-    if (/^(chrome-extension|moz-extension|safari-web-extension):\/\//i.test(origin)) return next();
+    // Allow loopback and explicitly allowed origins.
+    if (isOriginAllowed(origin)) return next();
 
-    try {
-        if (new URL(origin).host !== req.get('host')) {
-            return res.status(403).json({ error: 'Cross-origin запрос запрещён' });
-        }
-    } catch {
-        return res.status(403).json({ error: 'Некорректный Origin' });
-    }
-
-    return next();
+    logWarn(`CSRF protection: rejected mutating request from ${normalizeOrigin(origin)}`);
+    return res.status(403).json({ error: 'Cross-origin mutating requests not allowed' });
 }
 
-/** Стабильный ключ клиента для восстановления контекста диалога. */
-export function clientKey(req) {
-    const ip = req.ip || req.socket?.remoteAddress || 'unknown';
-    const userAgent = req.get('user-agent') || 'unknown';
-    return shortHash(`${ip}||${userAgent}`, 64);
-}
-
-/** Понятный ответ на битый JSON вместо стандартного HTML Express. */
-export function jsonSyntaxErrorHandler(err, req, res, next) {
-    const isJsonError = err instanceof SyntaxError
-        && err.status === 400
-        && Object.prototype.hasOwnProperty.call(err, 'body');
-
-    if (!isJsonError) return next(err);
-
-    logWarn(`Некорректный JSON в запросе: ${err.message}`);
-    return res.status(400).json({
-        error: 'Некорректный JSON',
-        message: 'Проверьте тело запроса: ожидается валидный JSON с двойными кавычками.'
-    });
-}
-
-export function notFoundHandler(req, res) {
-    logWarn(`404 Not Found: ${req.method} ${req.originalUrl}`);
-    res.status(404).json({ error: 'Эндпоинт не найден' });
-}
-
-// eslint-disable-next-line no-unused-vars
+/**
+ * Error handler: converts AppError to appropriate HTTP response.
+ */
 export function errorHandler(err, req, res, next) {
     if (err instanceof AppError) {
-        logError(`Ошибка обработки запроса (${err.code})`, err);
-        if (res.headersSent) return res.end();
+        logWarn(`Request error: ${err.message} (${err.code})`);
         return res.status(err.status).json(err.toJSON());
     }
 
-    logError('Внутренняя ошибка сервера', err);
-    if (res.headersSent) return res.end();
-    return res.status(500).json({ error: 'Внутренняя ошибка сервера' });
+    logError('Unhandled error', err);
+    return res.status(500).json({
+        error: {
+            message: 'Internal server error',
+            type: 'internal_error'
+        }
+    });
+}
+
+/**
+ * Handles malformed JSON request bodies rejected by body-parser.
+ */
+export function jsonSyntaxErrorHandler(err, req, res, next) {
+    if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+        logWarn('Invalid JSON payload');
+        return res.status(400).json({
+            error: {
+                message: 'Invalid JSON payload',
+                type: 'invalid_request_error'
+            }
+        });
+    }
+    return next(err);
+}
+
+/**
+ * Terminal handler for unmatched routes.
+ */
+export function notFoundHandler(req, res) {
+    return res.status(404).json({
+        error: {
+            message: 'Not found',
+            type: 'invalid_request_error'
+        }
+    });
+}
+
+/**
+ * Builds a stable client key from request metadata.
+ * Used to bind conversations to a client when no explicit ID is supplied.
+ */
+export function clientKey(req) {
+    const ip = req.socket?.remoteAddress || '';
+    const userAgent = req.get('user-agent') || '';
+    return shortHash(`${ip}|${userAgent}`);
 }

@@ -1,5 +1,5 @@
-// Патчи страницы поверх puppeteer-extra-plugin-stealth.
-// Qwen дополнительно смотрит на «человечность» окружения и поведение мыши.
+// Page patches on top of puppeteer-extra-plugin-stealth.
+// Qwen additionally checks the "humanity" of the environment and mouse behavior.
 
 export async function applyStealthPatches(page) {
     await page.evaluateOnNewDocument(() => {
@@ -31,7 +31,7 @@ export async function applyStealthPatches(page) {
             });
         }
 
-        // Микрозадержка обработчиков мыши: моментальная реакция выдаёт автоматизацию.
+        // Micro-delay for mouse handlers: instant reaction reveals automation.
         const originalAddEventListener = EventTarget.prototype.addEventListener;
         EventTarget.prototype.addEventListener = function (type, listener, options) {
             if (type === 'mousemove' || type === 'mousedown' || type === 'mouseup') {
@@ -43,7 +43,7 @@ export async function applyStealthPatches(page) {
             return originalAddEventListener.call(this, type, listener, options);
         };
 
-        // Шум в canvas против фингерпринтинга.
+        // Canvas noise against fingerprinting.
         const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
         HTMLCanvasElement.prototype.toDataURL = function (...args) {
             const context = this.getContext('2d');

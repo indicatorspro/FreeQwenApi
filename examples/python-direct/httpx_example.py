@@ -3,7 +3,7 @@ import httpx
 url = "http://localhost:3264/api/chat/completions"
 payload = {
     "model": "qwen-max-latest",
-    "messages": [{"role": "user", "content": "Привет! Напиши 1 полезный совет по Python."}],
+    "messages": [{"role": "user", "content": "Hello! Write 1 useful Python tip."}],
 }
 
 resp = httpx.post(url, json=payload, timeout=120)

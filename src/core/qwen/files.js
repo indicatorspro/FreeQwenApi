@@ -1,6 +1,6 @@
-// Загрузка файлов в OSS Alibaba: STS-токен от Qwen + аплоад из страницы браузера.
-// Аплоад выполняется в браузере, потому что OSS-эндпоинт принимает подпись
-// только с живой сессии — из Node запрос отклоняется.
+// File upload to Alibaba OSS: STS token from Qwen + upload from browser page.
+// Upload performed in browser because OSS endpoint accepts signature
+// only from live session — from Node request is rejected.
 
 import fs from 'fs';
 import path from 'path';
@@ -17,22 +17,22 @@ const DOCUMENT_EXTENSIONS = ['.pdf', '.doc', '.docx', '.txt'];
 
 function requireContext() {
     const context = getBrowserContext();
-    if (!context) throw new Error('Браузер не инициализирован');
+    if (!context) throw new Error('Browser not initialized');
     return context;
 }
 
 async function requireToken(context) {
     const account = await resolveAccount(context);
-    if (!account?.token) throw new Error('Не удалось получить токен авторизации');
+    if (!account?.token) throw new Error('Failed to get authorization token');
     return account.token;
 }
 
-/** Запрашивает у Qwen временные ключи для загрузки в OSS. */
+/** Requests temporary keys from Qwen for OSS upload. */
 export async function getStsToken(fileInfo) {
     const context = requireContext();
     const token = await requireToken(context);
 
-    logInfo(`Запрос STS-токена для файла: ${fileInfo.filename}`);
+    logInfo(`Requesting STS token for file: ${fileInfo.filename}`);
 
     const result = await withPage(context, (page) => postViaBrowser({
         page,
@@ -42,12 +42,12 @@ export async function getStsToken(fileInfo) {
     }));
 
     if (result.ok) {
-        logInfo(`STS-токен получен: ${fileInfo.filename}`);
+        logInfo(`STS token received: ${fileInfo.filename}`);
         return result.data;
     }
 
-    logError(`Ошибка получения STS-токена: status=${result.status}, body=${result.errorBody || result.error}`);
-    throw new Error(`Ошибка получения STS-токена: ${result.status || result.error}`);
+    logError(`Error getting STS token: status=${result.status}, body=${result.errorBody || result.error}`);
+    throw new Error(`Error getting STS token: ${result.status || result.error}`);
 }
 
 function validateStsData(stsData) {
@@ -55,16 +55,16 @@ function validateStsData(stsData) {
     return required.every(field => Boolean(stsData?.[field]));
 }
 
-/** Загружает файл в OSS, используя SDK, подгруженный на страницу. */
+/** Uploads a file to OSS using the SDK loaded onto the page. */
 export async function uploadFile(filePath, stsData) {
     const context = requireContext();
 
     if (!validateStsData(stsData)) {
-        throw new Error('Некорректные или неполные данные STS-токена');
+        throw new Error('Invalid or incomplete STS token data');
     }
 
     const fileBuffer = fs.readFileSync(filePath);
-    logInfo(`[OSS] Загрузка ${path.basename(filePath)} (${fileBuffer.length} байт) в ${stsData.bucketname}/${stsData.region}`);
+    logInfo(`[OSS] Uploading ${path.basename(filePath)} (${fileBuffer.length} bytes) to ${stsData.bucketname}/${stsData.region}`);
 
     const result = await withPage(context, (page) => page.evaluate(async (data) => {
         try {
@@ -107,8 +107,8 @@ export async function uploadFile(filePath, stsData) {
     }));
 
     if (!result.success) {
-        logError(`[OSS] Ошибка загрузки: ${result.error}`);
-        throw new Error(`Ошибка загрузки в OSS: ${result.error}`);
+        logError(`[OSS] Upload error: ${result.error}`);
+        throw new Error(`OSS upload error: ${result.error}`);
     }
 
     return {
@@ -127,10 +127,10 @@ function detectFileType(fileName) {
     return 'file';
 }
 
-/** Полный цикл: STS-токен → загрузка в OSS. */
+/** Full cycle: STS token → upload to OSS. */
 export async function uploadFileToQwen(filePath) {
     try {
-        if (!fs.existsSync(filePath)) throw new Error(`Файл не найден: ${filePath}`);
+        if (!fs.existsSync(filePath)) throw new Error(`File not found: ${filePath}`);
 
         const fileName = path.basename(filePath);
         const fileInfo = {
@@ -143,7 +143,7 @@ export async function uploadFileToQwen(filePath) {
         const uploaded = await uploadFile(filePath, stsData);
         return { ...uploaded, fileInfo, stsData };
     } catch (error) {
-        logError(`Ошибка загрузки файла: ${error.message}`, error);
+        logError(`File upload error: ${error.message}`, error);
         return { success: false, error: error.message };
     }
 }

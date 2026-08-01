@@ -7,7 +7,7 @@ client = OpenAI(
 
 resp = client.chat.completions.create(
     model="qwen-max-latest",
-    messages=[{"role": "user", "content": "Ответь одной строкой: API совместим с OpenAI?"}],
+    messages=[{"role": "user", "content": "Answer in one line: is this API compatible with OpenAI?"}],
 )
 
 print(resp.model)

@@ -28,7 +28,7 @@ function readExistingModels(file) {
 function extractPrerenderedJson(html) {
   const match = html.match(/window\.__prerendered_data\s*=\s*(\{[\s\S]*?\})\s*<\/script>/);
   if (!match) {
-    throw new Error('Не удалось найти window.__prerendered_data в HTML Qwen Chat');
+    throw new Error('Failed to find window.__prerendered_data in Qwen Chat HTML');
   }
   return JSON.parse(match[1]);
 }
@@ -36,12 +36,12 @@ function extractPrerenderedJson(html) {
 function capabilitiesOf(model) {
   const caps = model?.info?.meta?.capabilities || {};
   const labels = {
-    audio: 'аудио',
-    document: 'документы',
-    search: 'поиск',
-    thinking: 'thinking-режим',
-    video: 'видео',
-    vision: 'зрение'
+    audio: 'audio',
+    document: 'documents',
+    search: 'search',
+    thinking: 'thinking mode',
+    video: 'video',
+    vision: 'vision'
   };
   return Object.entries(caps)
     .filter(([, enabled]) => Boolean(enabled))
@@ -58,7 +58,7 @@ async function fetchQwenChatModels() {
   });
 
   if (!response.ok) {
-    throw new Error(`Запрос к Qwen Chat не удался: HTTP ${response.status}`);
+    throw new Error(`Request to Qwen Chat failed: HTTP ${response.status}`);
   }
 
   const html = await response.text();
@@ -87,36 +87,36 @@ function writeDocFile(file, discoveredModels, mergedIds, previousIds) {
   const missingFromChat = previousIds.filter(id => !discoveredIds.includes(id));
 
   const lines = [];
-  lines.push('# Синхронизация моделей Qwen Chat');
+  lines.push('# Qwen Chat model synchronization');
   lines.push('');
-  lines.push(`Сгенерировано: ${now}`);
+  lines.push(`Generated: ${now}`);
   lines.push('');
-  lines.push('Источник: prerendered-метаданные моделей с https://chat.qwen.ai/.');
+  lines.push('Source: prerendered model metadata from https://chat.qwen.ai/.');
   lines.push('');
-  lines.push('## Модели, которые сейчас видны в Qwen Chat');
+  lines.push('## Models currently visible in Qwen Chat');
   lines.push('');
   for (const model of discoveredModels) {
     const caps = model.capabilities.length ? ` — ${model.capabilities.join(', ')}` : '';
     lines.push(`- \`${model.id}\`${caps}`);
   }
   lines.push('');
-  lines.push('## Добавлено последней синхронизацией');
+  lines.push('## Added by the latest synchronization');
   lines.push('');
   if (added.length) {
     for (const id of added) lines.push(`- \`${id}\``);
   } else {
-    lines.push('- Новых моделей нет.');
+    lines.push('- No new models.');
   }
   lines.push('');
-  lines.push('## Модели эндпоинта, которых нет в текущих landing-метаданных Qwen Chat');
+  lines.push('## Endpoint models missing from the current Qwen Chat landing metadata');
   lines.push('');
   if (missingFromChat.length) {
     for (const id of missingFromChat) lines.push(`- \`${id}\``);
   } else {
-    lines.push('- Таких моделей нет.');
+    lines.push('- No such models.');
   }
   lines.push('');
-  lines.push('## Итоговый объединённый список моделей эндпоинта');
+  lines.push('## Final merged endpoint model list');
   lines.push('');
   for (const id of mergedIds) lines.push(`- \`${id}\``);
   lines.push('');
@@ -133,14 +133,14 @@ async function main() {
   writeModelsFile(OUTPUT_FILE, merged);
   writeDocFile(DOC_FILE, discovered, merged, existing);
 
-  console.log(`Найдено моделей Qwen Chat: ${discoveredIds.length}`);
-  console.log(`Список моделей эндпоинта записан: ${merged.length} моделей -> ${OUTPUT_FILE}`);
-  console.log(`Отчёт синхронизации записан: ${DOC_FILE}`);
+  console.log(`Qwen Chat models found: ${discoveredIds.length}`);
+  console.log(`Endpoint model list written: ${merged.length} models -> ${OUTPUT_FILE}`);
+  console.log(`Synchronization report written: ${DOC_FILE}`);
   const added = discoveredIds.filter(id => !existing.includes(id));
-  if (added.length) console.log(`Новые модели: ${added.join(', ')}`);
+  if (added.length) console.log(`New models: ${added.join(', ')}`);
 }
 
 main().catch(error => {
-  console.error(`Синхронизация моделей не удалась: ${error.message}`);
+  console.error(`Model synchronization failed: ${error.message}`);
   process.exit(1);
 });

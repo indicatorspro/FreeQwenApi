@@ -1,9 +1,9 @@
-// Пример использования streaming API через /api/chat
-// Запуск: node examples/streaming-test.js
+// Example of using the streaming API via /api/chat
+// Run: node examples/streaming-test.js
 
 async function testStreaming() {
-    console.log('🧪 Тестирование НАСТОЯЩЕГО стриминга через /api/chat\n');
-    console.log('📡 Ожидание первого чанка...\n');
+    console.log('🧪 Testing REAL streaming via /api/chat\n');
+    console.log('📡 Waiting for the first chunk...\n');
 
     const startTime = Date.now();
     let firstChunkTime = null;
@@ -14,19 +14,19 @@ async function testStreaming() {
             'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-            message: 'Расскажи короткую историю о космосе (5-7 предложений)',
+            message: 'Tell a short story about space (5-7 sentences)',
             model: 'qwen-max-latest',
             stream: true
         })
     });
 
     if (!response.ok) {
-        console.error(`❌ Ошибка HTTP: ${response.status}`);
+        console.error(`❌ HTTP error: ${response.status}`);
         return;
     }
 
-    console.log('✅ Получен ответ, начинаем чтение потока...\n');
-    console.log('📝 Текст ответа:\n');
+    console.log('✅ Response received, starting stream read...\n');
+    console.log('📝 Response text:\n');
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
@@ -46,13 +46,13 @@ async function testStreaming() {
             if (!line.trim() || !line.startsWith('data: ')) continue;
             if (line === 'data: [DONE]') {
                 const endTime = Date.now();
-                console.log('\n\n✅ Стриминг завершён');
-                console.log(`📊 Статистика:`);
-                console.log(`   - Получено чанков: ${chunkCount}`);
-                console.log(`   - Время до первого чанка: ${firstChunkTime - startTime}мс`);
-                console.log(`   - Общее время: ${endTime - startTime}мс`);
-                console.log(`   - Длина ответа: ${fullContent.length} символов`);
-                console.log(`   - Средняя скорость: ${Math.round(fullContent.length / ((endTime - firstChunkTime) / 1000))} символов/сек`);
+                console.log('\n\n✅ Streaming complete');
+                console.log(`📊 Statistics:`);
+                console.log(`   - Chunks received: ${chunkCount}`);
+                console.log(`   - Time to first chunk: ${firstChunkTime - startTime}ms`);
+                console.log(`   - Total time: ${endTime - startTime}ms`);
+                console.log(`   - Response length: ${fullContent.length} characters`);
+                console.log(`   - Average speed: ${Math.round(fullContent.length / ((endTime - firstChunkTime) / 1000))} chars/sec`);
                 return;
             }
 
@@ -71,12 +71,12 @@ async function testStreaming() {
                     fullContent += content;
                 }
             } catch (e) {
-                // Игнорируем ошибки парсинга
+                // Ignore parse errors
             }
         }
     }
 
-    console.log(`\n\n📊 Полный ответ (${fullContent.length} символов)`);
+    console.log(`\n\n📊 Full response (${fullContent.length} characters)`);
 }
 
 testStreaming().catch(console.error);

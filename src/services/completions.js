@@ -1,9 +1,9 @@
-// Единая логика chat completions: и для /api/chat/completions, и для
-// /api/v1/chat/completions, и для любого другого транспорта.
+// Unified chat completions logic: for /api/chat/completions,
+// /api/v1/chat/completions, and any other transport.
 //
-// Раньше это были две почти дословные копии по ~340 строк в routes.js, которые
-// успели разойтись в поведении (в одной сохранялся алиас чата, в другой нет).
-// Здесь HTTP-слой отвечает только за разбор запроса и формат ответа.
+// Previously these were two nearly verbatim copies of ~340 lines in routes.js,
+// which diverged in behavior (one saved chat alias, the other didn't).
+// Here HTTP layer only handles request parsing and response format.
 
 import { config } from '../config/index.js';
 import { completionId, unixSeconds } from '../shared/ids.js';
@@ -20,7 +20,7 @@ import { validateToolCalls } from '../core/tools/validate.js';
 import { prepareMessageInput } from '../core/tools/transcript.js';
 import { appendMessages } from '../core/history/store.js';
 
-/** Приводит content OpenAI к внутреннему формату Qwen. */
+/** Converts OpenAI content to internal Qwen format. */
 function normalizeContent(content) {
     if (!Array.isArray(content)) return content;
 
@@ -40,16 +40,16 @@ function extractSystemMessage(messages) {
 }
 
 /**
- * Реальный chatId Qwen для внутреннего ключа.
- * Внутренние ключи (chat_xxx) создаются нами, поэтому до первого ответа Qwen
- * им не соответствует ни один чат — возвращаем null, и sendMessage создаст чат
- * под тем же аккаунтом, под которым отправит сообщение.
+ * Real Qwen chatId for internal key.
+ * Internal keys (chat_xxx) are created by us, so before first Qwen response
+ * no chat corresponds to them — return null, and sendMessage will create chat
+ * under same account that will send the message.
  */
 function resolveQwenChatId(chatId) {
     if (!chatId) return null;
     const alias = resolveChatIdAlias(chatId);
     if (alias) {
-        logDebug(`Алиас чата: ${chatId} → ${alias}`);
+        logDebug(`Chat alias: ${chatId} → ${alias}`);
         return alias;
     }
     return chatId.startsWith('chat_') ? null : chatId;
@@ -66,7 +66,7 @@ function resolveQwenChatId(chatId) {
  * @property {string|null} [parentId]
  * @property {string|null} [conversationHint]
  * @property {boolean} [forceNewChat]
- * @property {string|null} [clientKey] — стабильный ключ клиента (ip+user-agent)
+ * @property {string|null} [clientKey] — stable client key (ip+user-agent)
  *
  * @typedef {object} CompletionResult
  * @property {string} id
@@ -76,13 +76,13 @@ function resolveQwenChatId(chatId) {
  * @property {string|null} chatId
  * @property {string|null} parentId
  * @property {object} usage
- * @property {boolean} streamed — контент уже отдан через onContent
+ * @property {boolean} streamed — content already sent via onContent
  * @property {string} [error]
  * @property {unknown} [details]
  */
 
 /**
- * Выполняет запрос completion.
+ * Executes a completion request.
  * @param {CompletionRequest} request
  * @param {{onContent?: (text: string) => void}} [handlers]
  * @returns {Promise<CompletionResult>}
@@ -102,7 +102,7 @@ export async function runCompletion(request, { onContent = null } = {}) {
     } = request;
 
     if (!Array.isArray(messages) || messages.length === 0) {
-        return { error: 'Сообщения не указаны', status: 400 };
+        return { error: 'Messages are not provided', status: 400 };
     }
 
     const registry = buildToolRegistry(tools, functions);
@@ -120,29 +120,29 @@ export async function runCompletion(request, { onContent = null } = {}) {
 
     const prepared = prepareMessageInput(messages, toolsActive ? registry : null, conversation.chatId);
     if (prepared.missingUser) {
-        return { error: 'В запросе нет сообщений от пользователя', status: 400 };
+        return { error: 'The request has no user messages', status: 400 };
     }
     if (prepared.folded) {
-        logInfo('История свёрнута в один запрос (результаты инструментов / stateless-режим)');
+        logInfo('History folded into a single request (tool results / stateless mode)');
     }
 
     const model = mapModel(requestedModel);
     if (requestedModel && model !== requestedModel) {
-        logInfo(`Модель "${requestedModel}" заменена на "${model}"`);
+        logInfo(`Model "${requestedModel}" replaced with "${model}"`);
     }
 
     const systemMessage = extractSystemMessage(messages);
     const toolAwareSystem = toolsActive ? applyToolsPrompt(systemMessage, registry, choice) : systemMessage;
 
     if (toolsActive) {
-        logInfo(`Активны инструменты: ${registry.size} шт., tool_choice=${choice.mode}${choice.name ? `:${choice.name}` : ''}`);
+        logInfo(`Tools active: ${registry.size} items, tool_choice=${choice.mode}${choice.name ? `:${choice.name}` : ''}`);
     }
 
-    // Пока не ясно, окажется ли ответ вызовом инструмента, служебный JSON
-    // клиенту не отдаём — фильтр придержит подозрительный фрагмент.
+    // Until it is clear whether the response will be a tool call, service JSON
+    // is not sent to the client — the filter holds back the suspicious fragment.
     const filter = onContent ? new ToolCallStreamFilter({ enabled: toolsActive }) : null;
-    // Копим то, что уже ушло клиенту: в конце нужно дослать ровно недостающее
-    // и ничего не продублировать.
+    // Accumulate what has already been sent to the client: at the end we must send exactly what is missing
+    // and duplicate nothing.
     let emittedText = '';
     const handleChunk = filter
         ? (chunk) => {
@@ -182,7 +182,7 @@ export async function runCompletion(request, { onContent = null } = {}) {
 
     if (filter) {
         const finished = filter.finish();
-        // Ответ мог прийти не потоком (JSON вместо SSE) — тогда фильтр пуст.
+        // The response may have arrived non-streamed (JSON instead of SSE) — then the filter is empty.
         if (filter.text) {
             content = finished.content;
             pending = finished.pending;
@@ -228,17 +228,17 @@ export async function runCompletion(request, { onContent = null } = {}) {
 
     const finalToolCalls = validated.calls.length > 0 ? validated.calls : null;
 
-    // Инструментов не нашлось: придержанный фильтром текст — обычный ответ.
-    if (!finalToolCalls && pending) content += pending;
+    // No tools found: `content` already contains the full raw response (including
+    // any held-back text), so we must NOT append `pending` again — that would duplicate it.
 
     if (!finalToolCalls && validated.problems.length > 0) {
-        logWarn(`Вызовы инструментов отброшены: ${validated.problems.map(p => p.reason).join('; ')}`);
+        logWarn(`Tool calls discarded: ${validated.problems.map(p => p.reason).join('; ')}`);
     }
 
     const finalContent = finalToolCalls ? content : (content || rawContent);
 
-    // Досылаем остаток: часть текста могла быть придержана фильтром, а ответ
-    // мог прийти и вовсе не потоком (Qwen иногда отвечает обычным JSON).
+    // Send the remainder: part of the text may have been held back by the filter, and the response
+    // may have arrived non-streamed altogether (Qwen sometimes responds with plain JSON).
     if (onContent) {
         const remainder = finalContent.startsWith(emittedText)
             ? finalContent.slice(emittedText.length)
@@ -246,7 +246,7 @@ export async function runCompletion(request, { onContent = null } = {}) {
         if (remainder) onContent(remainder);
     }
 
-    // Локальная копия истории — для дашборда и разбора инцидентов.
+    // Local copy of history — for the dashboard and incident investigation.
     if (chatId && !conversation.isMeta) {
         const lastUser = messages.filter(message => message?.role === 'user').pop();
         appendMessages(chatId, [
@@ -268,7 +268,7 @@ export async function runCompletion(request, { onContent = null } = {}) {
         chatId,
         parentId: parent,
         usage,
-        // Контент полностью доставлен через onContent — повторно слать не нужно.
+        // Content has been fully delivered via onContent — no need to send it again.
         streamed: Boolean(onContent)
     };
 }
@@ -290,10 +290,10 @@ function persistConversation({ conversation, clientKey, response }) {
 }
 
 /**
- * Переспрашивает модель, когда вызов не удалось принять.
+ * Re-asks the model when a call could not be accepted.
  *
- * Клиент исполняет вызовы буквально, поэтому лучше потратить один запрос на
- * уточнение, чем вернуть агенту несуществующую функцию или битые аргументы.
+ * The client executes calls literally, so it is better to spend one request on
+ * clarification than to return a nonexistent function or broken arguments to the agent.
  */
 async function repairIfNeeded({
     validated,
@@ -314,13 +314,13 @@ async function repairIfNeeded({
 
     const problems = validated.problems.length > 0
         ? validated.problems
-        : [{ name: choice.name || '', reason: 'Ответ не содержит вызова функции, хотя он обязателен.' }];
+        : [{ name: choice.name || '', reason: 'The response does not contain a function call, although one is required.' }];
 
     let currentChatId = chatId;
     let currentParentId = parentId;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        logWarn(`Некорректный вызов инструмента, уточняющий запрос ${attempt}/${maxAttempts}`);
+        logWarn(`Invalid tool call, clarification request ${attempt}/${maxAttempts}`);
 
         const response = await sendMessage({
             message: buildRepairPrompt(problems, registry),
@@ -331,7 +331,7 @@ async function repairIfNeeded({
         });
 
         if (response.error) {
-            logWarn(`Уточняющий запрос не удался: ${response.error}`);
+            logWarn(`Clarification request failed: ${response.error}`);
             return null;
         }
 
@@ -342,7 +342,7 @@ async function repairIfNeeded({
         const extracted = extractToolCalls(content);
 
         if (!extracted) {
-            // Модель ответила прозой — это допустимый исход, если вызов не обязателен.
+            // The model responded with prose — this is an acceptable outcome if the call is not required.
             if (choice.mode !== 'required') {
                 return {
                     validated: { calls: [], problems: [] },
@@ -357,7 +357,7 @@ async function repairIfNeeded({
 
         const revalidated = validateToolCalls(extracted.calls, registry);
         if (revalidated.calls.length > 0) {
-            logInfo('Уточняющий запрос дал корректный вызов инструмента');
+            logInfo('Clarification request produced a valid tool call');
             return {
                 validated: revalidated,
                 content: extracted.text,

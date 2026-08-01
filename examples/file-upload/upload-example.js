@@ -1,4 +1,4 @@
-// Пример для тестирования загрузки файлов
+// Example for testing file uploads
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -7,27 +7,27 @@ import FormData from 'form-data';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// URL API
+// API URL
 const API_URL = 'http://localhost:3264/api';
 
 /**
- * Загружает тестовый файл на сервер
- * @param {string} filePath - Путь к файлу для загрузки
- * @returns {Promise<Object>} - Результат загрузки файла
+ * Uploads a test file to the server
+ * @param {string} filePath - Path to the file to upload
+ * @returns {Promise<Object>} - File upload result
  */
 async function uploadTestFile(filePath) {
     try {
-        console.log(`Загрузка файла: ${filePath}`);
-        
+        console.log(`Uploading file: ${filePath}`);
+
         if (!fs.existsSync(filePath)) {
-            throw new Error(`Файл не найден: ${filePath}`);
+            throw new Error(`File not found: ${filePath}`);
         }
-        
-        // Создаем FormData для загрузки файла
+
+        // Create FormData for file upload
         const formData = new FormData();
         formData.append('file', fs.createReadStream(filePath));
-        
-        // Отправляем запрос на загрузку
+
+        // Send the upload request
         const response = await axios.post(`${API_URL}/files/upload`, formData, {
             headers: {
                 ...formData.getHeaders()
@@ -35,13 +35,13 @@ async function uploadTestFile(filePath) {
             maxContentLength: Infinity,
             maxBodyLength: Infinity
         });
-        
-        console.log('Файл успешно загружен:');
+
+        console.log('File uploaded successfully:');
         console.log(JSON.stringify(response.data, null, 2));
-        
+
         return response.data;
     } catch (error) {
-        console.error('Ошибка при загрузке файла:');
+        console.error('Error uploading file:');
         if (error.response) {
             console.error(error.response.data);
         } else {
@@ -52,22 +52,22 @@ async function uploadTestFile(filePath) {
 }
 
 /**
- * Получает STS токен напрямую (для тестирования)
- * @param {Object} fileInfo - Информация о файле
- * @returns {Promise<Object>} - Данные STS токена
+ * Gets an STS token directly (for testing)
+ * @param {Object} fileInfo - File information
+ * @returns {Promise<Object>} - STS token data
  */
 async function getTestStsToken(fileInfo) {
     try {
-        console.log(`Запрос STS токена для файла: ${fileInfo.filename}`);
-        
+        console.log(`Requesting STS token for file: ${fileInfo.filename}`);
+
         const response = await axios.post(`${API_URL}/files/getstsToken`, fileInfo);
-        
-        console.log('Получен STS токен:');
+
+        console.log('STS token received:');
         console.log(JSON.stringify(response.data, null, 2));
-        
+
         return response.data;
     } catch (error) {
-        console.error('Ошибка при получении STS токена:');
+        console.error('Error getting STS token:');
         if (error.response) {
             console.error(error.response.data);
         } else {
@@ -78,62 +78,62 @@ async function getTestStsToken(fileInfo) {
 }
 
 /**
- * Напрямую загружает файл через OSS (для тестирования)
- * @param {string} filePath - Путь к файлу
- * @param {Object} stsData - Данные STS токена
- * @returns {Promise<Object>} - Результат загрузки
+ * Uploads a file directly via OSS (for testing)
+ * @param {string} filePath - Path to the file
+ * @param {Object} stsData - STS token data
+ * @returns {Promise<Object>} - Upload result
  */
 async function directUploadFile(filePath, stsData) {
     try {
-        console.log(`Прямая загрузка файла: ${filePath}`);
-        
+        console.log(`Direct file upload: ${filePath}`);
+
         if (!stsData || !stsData.file_url || !stsData.file_path) {
-            throw new Error('Некорректные данные STS токена');
+            throw new Error('Invalid STS token data');
         }
-        
-        // Загружаем ali-oss библиотеку динамически
+
+        // Dynamically import the ali-oss library
         const OSS = (await import('ali-oss')).default;
-        
-        // Проверяем наличие необходимых данных для OSS
+
+        // Check that all required OSS data is present
         if (!stsData.access_key_id || !stsData.access_key_secret || !stsData.security_token ||
             !stsData.region || !stsData.bucketname) {
-            throw new Error('Неполные данные STS токена для OSS');
+            throw new Error('Incomplete STS token data for OSS');
         }
-        
-        console.log(`Создание OSS клиента: регион ${stsData.region}, бакет ${stsData.bucketname}`);
-        
-        // Создаем клиент OSS с STS токеном
+
+        console.log(`Creating OSS client: region ${stsData.region}, bucket ${stsData.bucketname}`);
+
+        // Create an OSS client with the STS token
         const client = new OSS({
             region: stsData.region,
             accessKeyId: stsData.access_key_id,
             accessKeySecret: stsData.access_key_secret,
             stsToken: stsData.security_token,
             bucket: stsData.bucketname,
-            secure: true, // Используем HTTPS
-            timeout: 60000 // 60 секунд таймаут
+            secure: true, // Use HTTPS
+            timeout: 60000 // 60 second timeout
         });
-        
-        // Получаем имя объекта из file_path
+
+        // Get the object name from file_path
         const objectName = stsData.file_path;
-        
-        console.log(`Загрузка файла в OSS: ${objectName}`);
-        
-        // Загружаем файл
+
+        console.log(`Uploading file to OSS: ${objectName}`);
+
+        // Upload the file
         const result = await client.put(objectName, filePath);
-        
-        console.log('Файл успешно загружен в OSS:');
+
+        console.log('File uploaded to OSS successfully:');
         console.log(`URL: ${stsData.file_url}`);
-        console.log(`Ответ OSS: ${JSON.stringify(result)}`);
-        
-        // Проверяем, что файл действительно загружен
+        console.log(`OSS response: ${JSON.stringify(result)}`);
+
+        // Verify that the file was actually uploaded
         try {
             const verifyResponse = await axios.get(stsData.file_url);
-            console.log(`Файл успешно проверен, статус: ${verifyResponse.status}`);
+            console.log(`File verified successfully, status: ${verifyResponse.status}`);
         } catch (error) {
-            console.log(`Не удалось проверить файл: ${error.message}`);
-            // Это не критическая ошибка, так как файл может быть недоступен сразу
+            console.log(`Could not verify file: ${error.message}`);
+            // This is not a critical error, as the file may not be immediately available
         }
-        
+
         return {
             success: true,
             fileName: path.basename(filePath),
@@ -142,9 +142,9 @@ async function directUploadFile(filePath, stsData) {
             ossResponse: result
         };
     } catch (error) {
-        console.error('Ошибка при загрузке файла в OSS:');
+        console.error('Error uploading file to OSS:');
         if (error.response) {
-            console.error(`Статус: ${error.response.status}`);
+            console.error(`Status: ${error.response.status}`);
             console.error(error.response.data);
         } else {
             console.error(error.message);
@@ -153,61 +153,61 @@ async function directUploadFile(filePath, stsData) {
     }
 }
 
-// Основная функция для запуска тестов
+// Main function to run the tests
 async function runTest() {
     try {
-        // Путь к тестовому файлу (например, изображение)
+        // Path to the test file (e.g., an image)
         const testFilePath = path.join(__dirname, 'test-image.jpg');
-        
-        // Если файл не существует, создадим простой текстовый файл для теста
+
+        // If the file does not exist, create a simple text file for testing
         if (!fs.existsSync(testFilePath)) {
-            console.log('Тестовый файл не найден, создаем текстовый файл для теста...');
-            
+            console.log('Test file not found, creating a text file for testing...');
+
             const textFilePath = path.join(__dirname, 'test-file.txt');
-            fs.writeFileSync(textFilePath, 'Это тестовый файл для загрузки.');
-            
-            console.log(`Создан тестовый файл: ${textFilePath}`);
-            
-            // Тестируем получение STS токена
+            fs.writeFileSync(textFilePath, 'This is a test file for upload.');
+
+            console.log(`Created test file: ${textFilePath}`);
+
+            // Test getting an STS token
             const fileInfo = {
                 filename: 'test-file.txt',
                 filesize: fs.statSync(textFilePath).size,
                 filetype: 'file'
             };
-            
+
             const stsData = await getTestStsToken(fileInfo);
-            
-            // Тестируем прямую загрузку файла
-            console.log('\n--- Тестирование прямой загрузки файла ---');
+
+            // Test direct file upload
+            console.log('\n--- Testing direct file upload ---');
             await directUploadFile(textFilePath, stsData);
-            
-            // Тестируем загрузку через API
-            console.log('\n--- Тестирование загрузки через API ---');
+
+            // Test upload via API
+            console.log('\n--- Testing upload via API ---');
             await uploadTestFile(textFilePath);
         } else {
-            // Тестируем получение STS токена
+            // Test getting an STS token
             const fileInfo = {
                 filename: 'test-image.jpg',
                 filesize: fs.statSync(testFilePath).size,
                 filetype: 'image'
             };
-            
+
             const stsData = await getTestStsToken(fileInfo);
-            
-            // Тестируем прямую загрузку файла
-            console.log('\n--- Тестирование прямой загрузки файла ---');
+
+            // Test direct file upload
+            console.log('\n--- Testing direct file upload ---');
             await directUploadFile(testFilePath, stsData);
-            
-            // Тестируем загрузку через API
-            console.log('\n--- Тестирование загрузки через API ---');
+
+            // Test upload via API
+            console.log('\n--- Testing upload via API ---');
             await uploadTestFile(testFilePath);
         }
-        
-        console.log('\nТестирование завершено успешно!');
+
+        console.log('\nTesting completed successfully!');
     } catch (error) {
-        console.error('Ошибка при выполнении теста:', error.message);
+        console.error('Error running test:', error.message);
     }
 }
 
-// Запускаем тест
-runTest(); 
+// Run the test
+runTest();

@@ -1,10 +1,10 @@
-// Поиск ссылок на сгенерированные медиа в ответах Qwen.
-// Структура ответа нестабильна, поэтому URL ищется рекурсивно по всему объекту.
+// Finding links to generated media in Qwen responses.
+// Response structure is unstable, so URL is searched recursively through entire object.
 
 const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.webm'];
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp'];
 
-/** Ключи, которые проверяем первыми — так реже попадаем на служебные ссылки. */
+/** Keys checked first — this way we less often hit service links. */
 const PREFERRED_KEYS = ['video_url', 'image_url', 'url', 'content', 'result', 'output', 'data', 'message'];
 
 function findUrl(value, extensions, seen) {
@@ -42,7 +42,7 @@ function findUrl(value, extensions, seen) {
 }
 
 /**
- * @param {unknown} value — произвольный фрагмент ответа Qwen
+ * @param {unknown} value — arbitrary Qwen response fragment
  * @param {'video'|'image'|'any'} [type]
  * @returns {string|null}
  */
@@ -55,7 +55,7 @@ export function extractMediaUrl(value, type = 'any') {
     return findUrl(value, extensions, new Set());
 }
 
-/** Идентификатор задачи генерации из ответа Qwen. */
+/** Generation task identifier from the Qwen response. */
 export function extractTaskId(data) {
     const firstMessage = data?.data?.messages?.[0];
     if (firstMessage?.extra?.wanx?.task_id) return firstMessage.extra.wanx.task_id;

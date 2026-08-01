@@ -17,18 +17,18 @@ const STATUS_CODES = {
 function formatStatus(token) {
     const now = Date.now();
     if (token.invalid) {
-        return { code: STATUS_CODES.INVALID, label: '❌ Недействителен' };
+        return { code: STATUS_CODES.INVALID, label: '❌ Invalid' };
     }
     if (token.resetAt && new Date(token.resetAt).getTime() > now) {
-        return { code: STATUS_CODES.WAIT, label: '⏳ Ожидание сброса' };
+        return { code: STATUS_CODES.WAIT, label: '⏳ Waiting for reset' };
     }
     return { code: STATUS_CODES.OK, label: '✅ OK' };
 }
 
 function printAccounts(tokens) {
-    console.log('\nСписок аккаунтов:');
+    console.log('\nAccount list:');
     if (!tokens.length) {
-        console.log('  (пусто)');
+        console.log('  (empty)');
         return;
     }
 
@@ -41,7 +41,7 @@ function printAccounts(tokens) {
 function handleList(tokens) {
     printAccounts(tokens);
     const active = tokens.filter(t => formatStatus(t).code === STATUS_CODES.OK);
-    console.log(`\nАктивных аккаунтов: ${active.length} из ${tokens.length}`);
+    console.log(`\nActive accounts: ${active.length} of ${tokens.length}`);
 }
 
 function parseArgs(argv) {
@@ -56,14 +56,14 @@ function parseArgs(argv) {
 
 function printHelp() {
     printDivider();
-    console.log('Скрипт управления аккаунтами Qwen');
+    console.log('Qwen account management script');
     printDivider();
-    console.log('Опции:');
-    console.log('  --list      Показать список аккаунтов и статусы');
-    console.log('  --add       Добавить новый аккаунт');
-    console.log('  --relogin   Перелогинить аккаунт с истекшим токеном');
-    console.log('  --remove    Удалить аккаунт');
-    console.log('Без опций запускается интерактивное меню.');
+    console.log('Options:');
+    console.log('  --list      Show account list and statuses');
+    console.log('  --add       Add a new account');
+    console.log('  --relogin   Re-login an account with an expired token');
+    console.log('  --remove    Remove an account');
+    console.log('Without options, an interactive menu is started.');
     printDivider();
 }
 
@@ -99,15 +99,15 @@ async function runInteractiveMenu() {
     while (true) {
         const tokens = listAccounts();
         printDivider();
-            printAccounts(tokens);
+        printAccounts(tokens);
         printDivider();
-        console.log('Меню:');
-        console.log('1 - Добавить новый аккаунт');
-        console.log('2 - Перелогинить аккаунт с истекшим токеном');
-        console.log('3 - Удалить аккаунт');
-        console.log('4 - Показать список и статусы');
-        console.log('5 - Выход');
-        const choice = await prompt('Ваш выбор (Enter = 5): ');
+        console.log('Menu:');
+        console.log('1 - Add a new account');
+        console.log('2 - Re-login an account with an expired token');
+        console.log('3 - Remove an account');
+        console.log('4 - Show list and statuses');
+        console.log('5 - Exit');
+        const choice = await prompt('Your choice (Enter = 5): ');
         const normalized = choice || '5';
 
         if (normalized === '1') {
@@ -118,9 +118,9 @@ async function runInteractiveMenu() {
             await removeAccountInteractive();
         } else if (normalized === '4') {
             handleList(tokens);
-            await prompt('\nНажмите Enter, чтобы вернуться в меню...');
+            await prompt('\nPress Enter to return to the menu...');
         } else if (normalized === '5') {
-            console.log('Выход из скрипта.');
+            console.log('Exiting the script.');
             break;
         }
     }

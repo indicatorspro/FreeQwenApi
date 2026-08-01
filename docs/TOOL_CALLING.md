@@ -1,67 +1,67 @@
-# Tool calling: подключение агентов (Codex, Claude Code, OpenCode)
+# Tool Calling: Connecting Agents (Codex, Claude Code, OpenCode)
 
-FreeQwenApi принимает поле `tools` запроса OpenAI и возвращает нормальные
-`tool_calls`. Это то, что нужно кодинг-агентам: свои встроенные инструменты и
-инструменты подключённых MCP-серверов они передают именно так.
+FreeQwenApi accepts the `tools` field from OpenAI requests and returns proper
+`tool_calls`. This is exactly what coding agents need: they pass their built-in
+tools and connected MCP server tools this way.
 
 ```text
-Агент ──tools[]──▶ FreeQwenApi ──промпт──▶ Qwen Chat
-Агент ◀─tool_calls── FreeQwenApi ◀─<tool_call>── Qwen Chat
+Agent ──tools[]──▶ FreeQwenApi ──prompt──▶ Qwen Chat
+Agent ◀─tool_calls── FreeQwenApi ◀─<tool_call>── Qwen Chat
 ```
 
-## Как это устроено
+## How It Works
 
-Веб-API Qwen Chat не принимает JSON Schema инструментов — там нет поля `tools`.
-Поэтому прокси описывает инструменты в системном сообщении, используя штатный
-формат Qwen (`<tools>` + `<tool_call>`), а ответ модели разбирает обратно в
-структуру OpenAI.
+The Qwen Chat web API does not accept JSON Schema tool definitions — there is no
+`tools` field. So the proxy describes tools in the system message using Qwen's
+native format (`<tools>` + `<tool_call>`), and parses the model's response back
+into the OpenAI structure.
 
-| Шаг | Что делает прокси |
+| Step | What the proxy does |
 |---|---|
-| Приём | нормализует `tools` и устаревшие `functions`, снимает дубли |
-| Промпт | описывает инструменты в нативном для Qwen формате, учитывает `tool_choice` |
-| Ответ | разбирает `<tool_call>`, markdown-фенсы, `{"tool_calls":[…]}`, голый объект |
-| Ремонт | чинит битый JSON, переспрашивает при неизвестном имени/аргументах |
-| Проверка | приводит аргументы к типам JSON Schema, проверяет обязательные поля |
-| Стриминг | придерживает служебный JSON, отдаёт `tool_calls` дельтами |
+| Ingestion | normalizes `tools` and legacy `functions`, removes duplicates |
+| Prompt | describes tools in Qwen's native format, respects `tool_choice` |
+| Response | parses `<tool_call>`, markdown fences, `{"tool_calls":[…]}`, bare object |
+| Repair | fixes broken JSON, re-queries on unknown name/arguments |
+| Validation | coerces arguments to JSON Schema types, checks required fields |
+| Streaming | holds back internal JSON, emits `tool_calls` as deltas |
 
-### Имена с префиксом MCP
+### MCP-Prefixed Names
 
-Claude Code и другие клиенты передают инструменты MCP как
-`mcp__github__create_pull_request`. Модель часто отвечает коротким именем
-(`create_pull_request`). Прокси восстанавливает полное имя — клиент получает
-ровно то, что объявлял. Если короткое имя неоднозначно (два MCP-сервера отдали
-одинаковый `search`), прокси не угадывает и запрашивает уточнение у модели.
+Claude Code and other clients pass MCP tools as
+`mcp__github__create_pull_request`. The model often responds with the short name
+(`create_pull_request`). The proxy restores the full name — the client receives
+exactly what it declared. If the short name is ambiguous (two MCP servers exposed
+the same `search`), the proxy does not guess and requests clarification from the model.
 
-### Много инструментов
+### Many Tools
 
-Агенты присылают десятки инструментов. Блок описания ограничен бюджетом
-(`TOOL_PROMPT_MAX_CHARS`, по умолчанию 24000 символов) и при переполнении
-сжимается ступенчато: сначала описания, затем вложенность схем, затем формат
-сигнатур. Имена инструментов урезаются в последнюю очередь — инструмент,
-которого нет в промпте, для модели не существует.
+Agents send dozens of tools. The description block is limited by a budget
+(`TOOL_PROMPT_MAX_CHARS`, default 24000 characters) and is compressed in stages
+when exceeded: first descriptions, then schema nesting depth, then signature
+format. Tool names are trimmed last — a tool absent from the prompt does not
+exist for the model.
 
-### Результаты инструментов
+### Tool Results
 
-Ход, в котором агент присылает `role: "tool"`, нельзя продолжить в серверной
-истории Qwen — там нет такой роли. Такой запрос сворачивается в одно сообщение
-в нотации `<tool_call>` / `<tool_response>`; длинные результаты обрезаются
-(`TOOL_RESULT_MAX_CHARS`).
+A turn where the agent sends `role: "tool"` cannot be continued in Qwen's server
+history — that role does not exist there. Such a request is folded into a single
+message using `<tool_call>` / `<tool_response>` notation; long results are
+truncated (`TOOL_RESULT_MAX_CHARS`).
 
-## Переменные окружения
+## Environment Variables
 
-| Переменная | По умолчанию | Назначение |
+| Variable | Default | Purpose |
 |---|---|---|
-| `TOOL_PROMPT_MAX_CHARS` | `24000` | бюджет символов на описание инструментов |
-| `TOOL_CALL_MAX_REPAIRS` | `1` | уточняющих запросов при некорректном вызове |
-| `TOOL_RESULT_MAX_CHARS` | `8000` | обрезка результата инструмента в истории |
-| `TOOL_COERCE_ARGUMENTS` | `true` | приведение аргументов к типам схемы |
+| `TOOL_PROMPT_MAX_CHARS` | `24000` | character budget for tool descriptions |
+| `TOOL_CALL_MAX_REPAIRS` | `1` | clarification requests on invalid calls |
+| `TOOL_RESULT_MAX_CHARS` | `8000` | tool result truncation in history |
+| `TOOL_COERCE_ARGUMENTS` | `true` | coerce arguments to schema types |
 
-## Настройка агентов
+## Agent Configuration
 
-Во всех примерах прокси запущен локально: `http://127.0.0.1:3264/api/v1`.
-Если в `src/Authorization.txt` заданы ключи, подставьте свой в поле API-ключа;
-если файл пуст, авторизация выключена и подойдёт любая строка.
+In all examples the proxy runs locally: `http://127.0.0.1:3264/api/v1`.
+If keys are set in `src/Authorization.txt`, use yours in the API key field;
+if the file is empty, authorization is disabled and any string will work.
 
 ### Codex CLI
 
@@ -79,16 +79,16 @@ env_key = "FREEQWEN_API_KEY"
 ```
 
 ```bash
-export FREEQWEN_API_KEY=dummy   # либо ключ из src/Authorization.txt
+export FREEQWEN_API_KEY=dummy   # or the key from src/Authorization.txt
 codex
 ```
 
-`wire_api = "chat"` обязателен: прокси реализует Chat Completions, а не
+`wire_api = "chat"` is required: the proxy implements Chat Completions, not the
 Responses API.
 
 ### OpenCode
 
-`opencode.json` в корне проекта или `~/.config/opencode/opencode.json`:
+`opencode.json` in the project root or `~/.config/opencode/opencode.json`:
 
 ```json
 {
@@ -111,8 +111,8 @@ Responses API.
 
 ### Claude Code
 
-Claude Code говорит в формате Anthropic Messages API, а прокси — в формате
-OpenAI. Нужен мост, например LiteLLM:
+Claude Code speaks the Anthropic Messages API format, while the proxy speaks
+OpenAI. A bridge is needed, for example LiteLLM:
 
 ```yaml
 # litellm.yaml
@@ -133,33 +133,33 @@ export ANTHROPIC_MODEL=qwen3.7-max
 claude
 ```
 
-LiteLLM отдаёт Anthropic-совместимый `/v1/messages` и сам переводит вызовы
-инструментов между форматами. Альтернатива — `claude-code-router` с тем же
+LiteLLM serves an Anthropic-compatible `/v1/messages` and translates tool calls
+between formats itself. An alternative is `claude-code-router` with the same
 `base_url`.
 
-### Прочие клиенты
+### Other Clients
 
-| Клиент | Что указать |
+| Client | What to specify |
 |---|---|
 | OpenAI SDK (Python/JS) | `base_url="http://127.0.0.1:3264/api/v1"` |
-| Cline / Roo Code | провайдер «OpenAI Compatible», тот же base URL |
-| Continue | `provider: openai`, `apiBase` тот же |
+| Cline / Roo Code | provider "OpenAI Compatible", same base URL |
+| Continue | `provider: openai`, same `apiBase` |
 | Aider | `--openai-api-base http://127.0.0.1:3264/api/v1` |
-| Open WebUI | см. [OPENWEBUI_SETUP.md](OPENWEBUI_SETUP.md) |
+| Open WebUI | see [OPENWEBUI_SETUP.md](OPENWEBUI_SETUP.md) |
 
-## Проверка
+## Verification
 
 ```bash
 curl -s http://127.0.0.1:3264/api/v1/chat/completions \
   -H 'Content-Type: application/json' \
   -d '{
     "model": "qwen3.7-max",
-    "messages": [{"role": "user", "content": "Прочитай файл src/index.js"}],
+    "messages": [{"role": "user", "content": "Read the file src/index.js"}],
     "tools": [{
       "type": "function",
       "function": {
         "name": "read_file",
-        "description": "Читает файл проекта",
+        "description": "Reads a project file",
         "parameters": {
           "type": "object",
           "properties": {"path": {"type": "string"}},
@@ -170,7 +170,7 @@ curl -s http://127.0.0.1:3264/api/v1/chat/completions \
   }' | jq '.choices[0]'
 ```
 
-Ожидаемый ответ:
+Expected response:
 
 ```json
 {
@@ -188,13 +188,13 @@ curl -s http://127.0.0.1:3264/api/v1/chat/completions \
 }
 ```
 
-## Ограничения
+## Limitations
 
-- Инструменты не-функционального типа (`web_search`, `code_interpreter` и
-  подобные серверные) прокси выполнить не может и молча пропускает.
-- Параллельные вызовы поддерживаются, но качество зависит от модели: `qwen3.7-max`
-  и `qwen3-coder-plus` держат дисциплину заметно лучше мелких моделей.
-- Строгая схема (`strict: true`) принимается, но гарантируется не форматом
-  ответа модели, а проверкой на стороне прокси.
-- Аргументы приводятся к типам схемы; при нехватке обязательных полей прокси
-  переспрашивает модель, а не отдаёт клиенту заведомо нерабочий вызов.
+- Non-function tool types (`web_search`, `code_interpreter`, and similar
+  server-side tools) cannot be executed by the proxy and are silently skipped.
+- Parallel calls are supported, but quality depends on the model: `qwen3.7-max`
+  and `qwen3-coder-plus` maintain discipline noticeably better than smaller models.
+- Strict schema (`strict: true`) is accepted, but enforcement is guaranteed not
+  by the model's response format but by proxy-side validation.
+- Arguments are coerced to schema types; if required fields are missing, the
+  proxy re-queries the model rather than returning a known-broken call to the client.

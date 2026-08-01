@@ -1,6 +1,6 @@
-// Управление аккаунтами Qwen из дашборда.
-// Все эндпоинты доступны только с localhost и только с совпадающим Origin:
-// здесь ходят токены аккаунтов.
+// Qwen account management from the dashboard.
+// All endpoints are available only from localhost and only with matching Origin:
+// account tokens are handled here.
 
 import express from 'express';
 
@@ -35,7 +35,7 @@ router.get('/accounts', (req, res, next) => {
                 status: accountStatus(account),
                 exp: info.exp,
                 resetAt: account.resetAt || null,
-                // Показываем только края токена — целиком он в ответе не нужен.
+                // Show only token edges — the full token is not needed in the response.
                 preview: `${String(account.token).slice(0, 10)}…${String(account.token).slice(-4)}`
             };
         });
@@ -48,12 +48,12 @@ router.get('/accounts', (req, res, next) => {
 router.post('/accounts', (req, res, next) => {
     try {
         const token = req.body?.token;
-        if (!token) return res.status(400).json({ error: 'Не передан token' });
+        if (!token) return res.status(400).json({ error: 'token not provided' });
 
         const result = addAccountFromToken(token, req.body?.label);
         if (result.error) return res.status(400).json(result);
 
-        logInfo(`Добавлен аккаунт: ${result.id}`);
+        logInfo(`Account added: ${result.id}`);
         return res.json({ ok: true, id: result.id });
     } catch (error) {
         next(error);
@@ -65,21 +65,21 @@ router.delete('/accounts/:id', (req, res, next) => {
         const result = deleteAccount(req.params.id);
         if (result.error) return res.status(400).json(result);
 
-        logInfo(`Удалён аккаунт: ${req.params.id}`);
+        logInfo(`Account deleted: ${req.params.id}`);
         return res.json({ ok: true });
     } catch (error) {
         next(error);
     }
 });
 
-/** POST, а не GET: проверка меняет состояние аккаунта (mark*). */
+/** POST, not GET: checking changes account state (mark*). */
 router.post('/accounts/:id/check', async (req, res, next) => {
     try {
         const account = listAccounts().find(item => item.id === req.params.id);
-        if (!account) return res.status(404).json({ error: 'Аккаунт не найден' });
+        if (!account) return res.status(404).json({ error: 'Account not found' });
 
         const context = getBrowserContext();
-        if (!context) return res.status(503).json({ error: 'Браузер не инициализирован' });
+        if (!context) return res.status(503).json({ error: 'Browser not initialized' });
 
         const result = await testToken(context, account.token);
         let status = 'ERROR';
@@ -110,7 +110,7 @@ router.post('/accounts/:id/update', (req, res, next) => {
         const result = updateAccountToken(req.params.id, req.body?.token);
         if (result.error) return res.status(400).json(result);
 
-        logInfo(`Обновлён токен аккаунта: ${req.params.id}`);
+        logInfo(`Account token updated: ${req.params.id}`);
         return res.json(result);
     } catch (error) {
         next(error);
@@ -122,7 +122,7 @@ router.post('/accounts/:id/label', (req, res, next) => {
         const result = setAccountLabel(req.params.id, req.body?.label);
         if (result.error) return res.status(400).json(result);
 
-        logInfo(`Изменён ярлык аккаунта: ${req.params.id}`);
+        logInfo(`Account label changed: ${req.params.id}`);
         return res.json(result);
     } catch (error) {
         next(error);

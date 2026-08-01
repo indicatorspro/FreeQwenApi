@@ -1,5 +1,5 @@
-// Генерация изображений через официальный DashScope API (нужен DASHSCOPE_API_KEY).
-// Альтернативный путь к Qwen Chat: тот работает без ключа, но медленнее.
+// Image generation via the official DashScope API (requires DASHSCOPE_API_KEY).
+// Alternative path to Qwen Chat: that one works without a key but is slower.
 
 import axios from 'axios';
 
@@ -24,7 +24,7 @@ export function getAvailableImageModels() {
     return [...IMAGE_MODELS];
 }
 
-/** Опрос асинхронной задачи DashScope. */
+/** Polls an asynchronous DashScope task. */
 async function pollTask(taskId, apiKey) {
     for (let attempt = 1; attempt <= POLL_MAX_ATTEMPTS; attempt++) {
         try {
@@ -33,31 +33,31 @@ async function pollTask(taskId, apiKey) {
             });
 
             const status = response.data.output?.task_status;
-            logDebug(`Статус задачи ${taskId}: ${status} (${attempt}/${POLL_MAX_ATTEMPTS})`);
+            logDebug(`Task ${taskId} status: ${status} (${attempt}/${POLL_MAX_ATTEMPTS})`);
 
             if (status === 'SUCCEEDED') {
                 const imageUrl = response.data.output?.results?.[0]?.url;
-                if (!imageUrl) return { error: 'Изображение не найдено в результате' };
-                logInfo(`Изображение сгенерировано: ${imageUrl}`);
+                if (!imageUrl) return { error: 'Image not found in result' };
+                logInfo(`Image generated: ${imageUrl}`);
                 return { success: true, imageUrl, taskId, model: response.data.input?.model || 'unknown' };
             }
 
             if (status === 'FAILED' || status === 'CANCELLED') {
                 return {
-                    error: `Задача завершена со статусом ${status}`,
-                    message: response.data.output?.message || 'Неизвестная ошибка'
+                    error: `Task finished with status ${status}`,
+                    message: response.data.output?.message || 'Unknown error'
                 };
             }
 
             await delay(POLL_INTERVAL);
         } catch (error) {
-            logError(`Ошибка опроса задачи ${taskId}`, error);
-            if (attempt === POLL_MAX_ATTEMPTS) return { error: `Ошибка опроса: ${error.message}` };
+            logError(`Error polling task ${taskId}`, error);
+            if (attempt === POLL_MAX_ATTEMPTS) return { error: `Polling error: ${error.message}` };
             await delay(POLL_INTERVAL);
         }
     }
 
-    return { error: 'Превышено время ожидания генерации изображения' };
+    return { error: 'Image generation timed out' };
 }
 
 /**
@@ -69,11 +69,11 @@ async function pollTask(taskId, apiKey) {
 export async function generateImage(prompt, model = 'qwen-image-plus', options = {}) {
     const apiKey = config.qwen.dashscopeApiKey;
     if (!apiKey) {
-        return { error: 'DASHSCOPE_API_KEY не задан' };
+        return { error: 'DASHSCOPE_API_KEY is not set' };
     }
 
     try {
-        logInfo(`Генерация изображения через DashScope (${model})…`);
+        logInfo(`Generating image via DashScope (${model})…`);
 
         const isWanModel = model.startsWith('wan');
         const response = await axios.post(
@@ -92,7 +92,7 @@ export async function generateImage(prompt, model = 'qwen-image-plus', options =
                 headers: {
                     Authorization: `Bearer ${apiKey}`,
                     'Content-Type': 'application/json',
-                    // Модели Wan работают только в асинхронном режиме.
+                    // Wan models only work in asynchronous mode.
                     'X-DashScope-Async': isWanModel ? 'enable' : undefined
                 },
                 timeout: 120_000
@@ -102,24 +102,24 @@ export async function generateImage(prompt, model = 'qwen-image-plus', options =
         const data = response.data;
 
         if (data.output?.task_id) {
-            logInfo(`Задача создана: ${data.output.task_id}`);
+            logInfo(`Task created: ${data.output.task_id}`);
             return pollTask(data.output.task_id, apiKey);
         }
 
         const imageUrl = data.output?.results?.[0]?.url;
         if (imageUrl) {
-            logInfo(`Изображение сгенерировано: ${imageUrl}`);
+            logInfo(`Image generated: ${imageUrl}`);
             return { success: true, imageUrl, taskId: data.output?.task_id, model, prompt };
         }
 
-        return { error: 'Неожиданный формат ответа DashScope', rawData: data };
+        return { error: 'Unexpected DashScope response format', rawData: data };
     } catch (error) {
-        logError('Ошибка при генерации изображения', error);
-        return { error: error.response?.data?.message || error.message || 'Неизвестная ошибка' };
+        logError('Error generating image', error);
+        return { error: error.response?.data?.message || error.message || 'Unknown error' };
     }
 }
 
-/** Доступен ли DashScope с текущим ключом. */
+/** Whether DashScope is available with the current key. */
 export async function checkImageApiAvailability() {
     const apiKey = config.qwen.dashscopeApiKey;
     if (!apiKey) return false;
@@ -131,7 +131,7 @@ export async function checkImageApiAvailability() {
         });
         return true;
     } catch (error) {
-        logDebug(`DashScope недоступен: ${error.message}`);
+        logDebug(`DashScope unavailable: ${error.message}`);
         return false;
     }
 }

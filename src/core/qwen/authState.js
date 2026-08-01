@@ -1,7 +1,7 @@
-// Текущий токен Qwen в памяти процесса.
+// Current Qwen token in process memory.
 //
-// Раньше это была переменная `authToken` внутри chat.js, которую правили из
-// пяти модулей через побочные эффекты импорта. Теперь состояние явное.
+// Previously this was `authToken` variable inside chat.js, modified from
+// five modules via import side effects. Now state is explicit.
 
 let authToken = null;
 let browserTokenRateLimited = false;
@@ -19,7 +19,7 @@ export function clearAuthToken() {
     authToken = null;
 }
 
-/** Токен, извлечённый из браузера, исчерпал лимит — фолбэк на него бессмыслен. */
+/** Token extracted from browser exhausted limit — fallback to it is pointless. */
 export function isBrowserTokenRateLimited() {
     return browserTokenRateLimited;
 }

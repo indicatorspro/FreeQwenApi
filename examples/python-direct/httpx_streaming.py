@@ -4,7 +4,7 @@ import httpx
 url = "http://localhost:3264/api/chat/completions"
 payload = {
     "model": "qwen-max-latest",
-    "messages": [{"role": "user", "content": "Напиши короткое хайку про баги."}],
+    "messages": [{"role": "user", "content": "Write a short haiku about bugs."}],
     "stream": True,
 }
 

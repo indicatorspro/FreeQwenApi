@@ -20,7 +20,7 @@ async function requestJson(path, options = {}) {
   }
 
   if (!response.ok) {
-    throw new Error(`${options.method || 'GET'} ${path}: ошибка HTTP ${response.status} ${text.slice(0, 500)}`);
+    throw new Error(`${options.method || 'GET'} ${path}: HTTP error ${response.status} ${text.slice(0, 500)}`);
   }
 
   return data;
@@ -31,11 +31,11 @@ async function main() {
   const models = await requestJson('/models');
   const modelIds = models.data.map(model => model.id);
 
-  console.log(`Аккаунтов в статусе: ${status.accounts?.length ?? 0}`);
-  console.log(`Моделей: ${modelIds.length}`);
+  console.log(`Accounts in status: ${status.accounts?.length ?? 0}`);
+  console.log(`Models: ${modelIds.length}`);
 
   if (!modelIds.includes(MODEL)) {
-    throw new Error(`Smoke-модель ${MODEL} отсутствует в /models`);
+    throw new Error(`Smoke model ${MODEL} is missing from /models`);
   }
 
   const completion = await requestJson('/chat/completions', {
@@ -44,7 +44,7 @@ async function main() {
       model: MODEL,
       stream: false,
       messages: [
-        { role: 'user', content: 'Ответь ровно одним словом: работает' }
+        { role: 'user', content: 'Answer with exactly one word: works' }
       ]
     })
   });
@@ -54,10 +54,10 @@ async function main() {
 
   await checkToolCalling();
 
-  console.log('Smoke-проверка OK');
+  console.log('Smoke check OK');
 }
 
-/** Проверяет, что модель возвращает настоящий tool_call — то, чего ждут агенты. */
+/** Checks that the model returns a real tool_call — what agents expect. */
 async function checkToolCalling() {
   const response = await requestJson('/chat/completions', {
     method: 'POST',
@@ -65,16 +65,16 @@ async function checkToolCalling() {
       model: MODEL,
       stream: false,
       messages: [
-        { role: 'user', content: 'Какая сейчас погода в Москве? Используй доступный инструмент.' }
+        { role: 'user', content: 'What is the current weather in Moscow? Use the available tool.' }
       ],
       tools: [{
         type: 'function',
         function: {
           name: 'get_weather',
-          description: 'Возвращает текущую погоду в городе',
+          description: 'Returns the current weather in a city',
           parameters: {
             type: 'object',
-            properties: { city: { type: 'string', description: 'Название города' } },
+            properties: { city: { type: 'string', description: 'City name' } },
             required: ['city']
           }
         }
@@ -86,23 +86,23 @@ async function checkToolCalling() {
   const toolCall = choice?.message?.tool_calls?.[0];
 
   if (!toolCall) {
-    console.warn(`Tool calling: модель ответила текстом вместо вызова (finish_reason=${choice?.finish_reason}). Это возможно, но нежелательно.`);
+    console.warn(`Tool calling: model responded with text instead of a call (finish_reason=${choice?.finish_reason}). This is possible but undesirable.`);
     return;
   }
 
   if (toolCall.function?.name !== 'get_weather') {
-    throw new Error(`Tool calling: неверное имя функции ${toolCall.function?.name}`);
+    throw new Error(`Tool calling: invalid function name ${toolCall.function?.name}`);
   }
 
   const args = JSON.parse(toolCall.function.arguments || '{}');
   if (!args.city) {
-    throw new Error('Tool calling: в аргументах нет обязательного поля city');
+    throw new Error('Tool calling: arguments are missing the required city field');
   }
 
   console.log(`Tool calling: ${toolCall.function.name}(${toolCall.function.arguments})`);
 }
 
 main().catch(error => {
-  console.error(`Smoke-проверка не удалась: ${error.message}`);
+  console.error(`Smoke check failed: ${error.message}`);
   process.exit(1);
 });

@@ -1,4 +1,4 @@
-// Хранение сессии браузера: cookies/storage-state и последний токен.
+// Browser session storage: cookies/storage-state and the latest token.
 
 import fs from 'fs';
 import path from 'path';
@@ -9,7 +9,7 @@ import { ACCOUNTS_DIR, AUTH_TOKEN_FILE, SESSION_DIR, ensureDir, safeJoin } from 
 function sessionFilePath(accountId, fileName) {
     if (!accountId) return path.join(SESSION_DIR, fileName);
     const dir = safeJoin(ACCOUNTS_DIR, accountId);
-    if (!dir) throw new Error(`Недопустимый id аккаунта: ${accountId}`);
+    if (!dir) throw new Error(`Invalid account id: ${accountId}`);
     return path.join(dir, fileName);
 }
 
@@ -29,7 +29,7 @@ export async function saveSession(context, accountId = null) {
             const target = sessionFilePath(accountId, 'cookies.json');
             ensureDir(path.dirname(target));
             fs.writeFileSync(target, JSON.stringify(cookies, null, 2));
-            logInfo('Сессия сохранена (cookies)');
+            logInfo('Session saved (cookies)');
             return true;
         }
 
@@ -37,14 +37,14 @@ export async function saveSession(context, accountId = null) {
             const target = sessionFilePath(accountId, 'state.json');
             ensureDir(path.dirname(target));
             await context.storageState({ path: target });
-            logInfo('Сессия сохранена (storage state)');
+            logInfo('Session saved (storage state)');
             return true;
         }
 
-        logError('Неизвестный тип контекста браузера');
+        logError('Unknown browser context type');
         return false;
     } catch (error) {
-        logError('Ошибка при сохранении сессии', error);
+        logError('Error saving session', error);
         return false;
     }
 }
@@ -56,7 +56,7 @@ export async function loadSession(context, accountId = null) {
             if (!fs.existsSync(source)) return false;
             const cookies = JSON.parse(fs.readFileSync(source, 'utf8'));
             await context.setCookie(...cookies);
-            logInfo('Сессия загружена (cookies)');
+            logInfo('Session loaded (cookies)');
             return true;
         }
 
@@ -64,11 +64,11 @@ export async function loadSession(context, accountId = null) {
             const source = sessionFilePath(accountId, 'state.json');
             if (!fs.existsSync(source)) return false;
             await context.storageState({ path: source });
-            logInfo('Сессия загружена (storage state)');
+            logInfo('Session loaded (storage state)');
             return true;
         }
     } catch (error) {
-        logError('Ошибка при загрузке сессии', error);
+        logError('Error loading session', error);
     }
     return false;
 }
@@ -86,10 +86,10 @@ export function clearSession(accountId = null) {
                 cleared = true;
             }
         }
-        if (cleared) logInfo('Сессия очищена');
+        if (cleared) logInfo('Session cleared');
         return cleared;
     } catch (error) {
-        logError('Ошибка при очистке сессии', error);
+        logError('Error clearing session', error);
         return false;
     }
 }
@@ -108,7 +108,7 @@ export function saveAuthToken(token) {
         fs.writeFileSync(AUTH_TOKEN_FILE, token, 'utf8');
         return true;
     } catch (error) {
-        logError('Ошибка при сохранении токена авторизации', error);
+        logError('Error saving auth token', error);
         return false;
     }
 }
@@ -117,7 +117,7 @@ export function loadAuthToken() {
     try {
         if (fs.existsSync(AUTH_TOKEN_FILE)) return fs.readFileSync(AUTH_TOKEN_FILE, 'utf8');
     } catch (error) {
-        logError('Ошибка при чтении токена авторизации', error);
+        logError('Error reading auth token', error);
     }
     return null;
 }

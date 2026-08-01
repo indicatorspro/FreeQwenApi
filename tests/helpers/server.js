@@ -1,8 +1,8 @@
-// Утилиты для интеграционных тестов HTTP-слоя.
+// Utilities for HTTP-layer integration tests.
 
 import { createApp } from '../../src/server/app.js';
 
-/** Поднимает приложение на свободном порту. */
+/** Starts the application on a free port. */
 export async function startTestServer() {
     const app = createApp();
     const server = await new Promise(resolve => {
@@ -30,7 +30,7 @@ export async function startTestServer() {
     };
 }
 
-/** Разбирает SSE-ответ в список событий chat.completion.chunk. */
+/** Parses an SSE response into a list of chat.completion.chunk events. */
 export async function readSse(response) {
     const text = await response.text();
     return text
@@ -42,23 +42,23 @@ export async function readSse(response) {
         .map(payload => JSON.parse(payload));
 }
 
-/** Склеивает контент из дельт SSE. */
+/** Joins content from SSE deltas. */
 export function sseContent(events) {
     return events.map(event => event.choices?.[0]?.delta?.content || '').join('');
 }
 
-/** Собирает вызовы инструментов из дельт SSE. */
+/** Collects tool calls from SSE deltas. */
 export function sseToolCalls(events) {
     return events.flatMap(event => event.choices?.[0]?.delta?.tool_calls || []);
 }
 
-/** Причина завершения последнего чанка. */
+/** Finish reason of the last chunk. */
 export function sseFinishReason(events) {
     return events.map(event => event.choices?.[0]?.finish_reason).filter(Boolean).pop() || null;
 }
 
 /**
- * Мок ответа Qwen: отдаёт текст чанками через onChunk и возвращает completion.
+ * Mock Qwen response: emits text in chunks via onChunk and returns a completion.
  */
 export function mockQwenReply(text, { chatId = 'qwen-chat-1', stream = true, chunkSize = 8 } = {}) {
     return async ({ onChunk }) => {

@@ -9,17 +9,17 @@ const API_URL = 'http://localhost:3264/api/chat/completions';
 async function testStreaming() {
     try {
         console.log('=== Testing Streaming API ===\n');
-        
+
         // First request: introduce yourself
-        console.log('POST 1: Stream "Привет, я Дима"');
-        
+        console.log('POST 1: Stream "Hello, I am Dima"');
+
         const response1 = await axios.post(
             API_URL,
             {
                 messages: [
                     {
                         role: 'user',
-                        content: 'Привет, я Дима'
+                        content: 'Hello, I am Dima'
                     }
                 ],
                 model: 'qwen-max-latest',
@@ -36,12 +36,12 @@ async function testStreaming() {
         // Handle streaming response
         let fullContent1 = '';
         let chunkCount1 = 0;
-        
+
         await new Promise((resolve, reject) => {
             response1.data.on('data', (chunk) => {
                 const text = chunk.toString();
                 const lines = text.split('\n').filter(line => line.trim());
-                
+
                 for (const line of lines) {
                     if (line.startsWith('data: ')) {
                         try {
@@ -58,13 +58,13 @@ async function testStreaming() {
                     }
                 }
             });
-            
+
             response1.data.on('end', () => {
                 console.log('\n');
                 console.log(`✅ Stream 1 complete. Chunks: ${chunkCount1}, Total length: ${fullContent1.length}`);
                 resolve();
             });
-            
+
             response1.data.on('error', reject);
         });
 
@@ -72,15 +72,15 @@ async function testStreaming() {
         await new Promise(resolve => setTimeout(resolve, 2000));
 
         // Second request: ask about name
-        console.log('\nPOST 2: Stream "Как меня зовут?"');
-        
+        console.log('\nPOST 2: Stream "What is my name?"');
+
         const response2 = await axios.post(
             API_URL,
             {
                 messages: [
                     {
                         role: 'user',
-                        content: 'Как меня зовут?'
+                        content: 'What is my name?'
                     }
                 ],
                 model: 'qwen-max-latest',
@@ -97,12 +97,12 @@ async function testStreaming() {
         // Handle streaming response
         let fullContent2 = '';
         let chunkCount2 = 0;
-        
+
         await new Promise((resolve, reject) => {
             response2.data.on('data', (chunk) => {
                 const text = chunk.toString();
                 const lines = text.split('\n').filter(line => line.trim());
-                
+
                 for (const line of lines) {
                     if (line.startsWith('data: ')) {
                         try {
@@ -119,20 +119,20 @@ async function testStreaming() {
                     }
                 }
             });
-            
+
             response2.data.on('end', () => {
                 console.log('\n');
                 console.log(`✅ Stream 2 complete. Chunks: ${chunkCount2}, Total length: ${fullContent2.length}`);
                 resolve();
             });
-            
+
             response2.data.on('error', reject);
         });
 
         console.log('\n=== Streaming Test Successful ===');
 
     } catch (error) {
-        console.error('Ошибка:', error.message);
+        console.error('Error:', error.message);
         if (error.response) {
             console.error('Status:', error.response.status);
             console.error('Data:', error.response.data);

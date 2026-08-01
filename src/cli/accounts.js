@@ -1,4 +1,4 @@
-// Интерактивное управление аккаунтами Qwen из консоли.
+// Interactive management of Qwen accounts from the console.
 
 import fs from 'fs';
 import path from 'path';
@@ -13,15 +13,15 @@ import { accountStatus, listAccounts, loadAccounts, markValid, removeAccount, sa
 
 const STATUS_LABELS = {
     OK: '✅ OK',
-    WAIT: '⏳ Ожидание сброса',
-    INVALID: '❌ Недействителен',
-    EXPIRED: '⚠️ Токен истёк'
+    WAIT: '⏳ Waiting for reset',
+    INVALID: '❌ Invalid',
+    EXPIRED: '⚠️ Token expired'
 };
 
 export function printAccounts(accounts = listAccounts()) {
-    console.log('\nСписок аккаунтов:');
+    console.log('\nAccount list:');
     if (accounts.length === 0) {
-        console.log('  (пусто)');
+        console.log('  (empty)');
         return;
     }
 
@@ -34,30 +34,30 @@ export function printAccounts(accounts = listAccounts()) {
 
 function accountDir(id) {
     const dir = safeJoin(ACCOUNTS_DIR, id);
-    if (!dir) throw new Error(`Недопустимый id аккаунта: ${id}`);
+    if (!dir) throw new Error(`Invalid account id: ${id}`);
     return ensureDir(dir);
 }
 
-/** Открывает браузер, ждёт входа пользователя и сохраняет токен как новый аккаунт. */
+/** Opens the browser, waits for the user to log in, and saves the token as a new account. */
 export async function addAccountInteractive() {
-    logInfo('Добавление нового аккаунта Qwen');
-    logInfo('Откроется браузер: войдите в аккаунт и вернитесь в консоль.');
+    logInfo('Adding a new Qwen account');
+    logInfo('A browser will open: log in to the account and return to the console.');
 
     if (!await initBrowser(true, true)) {
-        logError('Не удалось запустить браузер.');
+        logError('Failed to launch the browser.');
         return null;
     }
 
     let token = await extractAuthToken(getBrowserContext(), true);
     if (!token) {
         token = loadAuthToken();
-        if (token) logInfo('Токен взят из сохранённого файла.');
+        if (token) logInfo('Token taken from the saved file.');
     }
 
     await shutdownBrowser();
 
     if (!token) {
-        logError('Токен не получен, аккаунт не добавлен.');
+        logError('No token obtained, account not added.');
         return null;
     }
 
@@ -68,35 +68,35 @@ export async function addAccountInteractive() {
     accounts.push({ id, token, resetAt: null });
     saveAccounts(accounts);
 
-    logInfo(`Аккаунт '${id}' добавлен. Всего аккаунтов: ${accounts.length}`);
+    logInfo(`Account '${id}' added. Total accounts: ${accounts.length}`);
     return id;
 }
 
-/** Обновляет токен аккаунта, у которого истёк вход. */
+/** Updates the token of an account whose login has expired. */
 export async function reloginAccountInteractive() {
     const accounts = listAccounts();
     const broken = accounts.filter(account => account.invalid);
 
     if (broken.length === 0) {
-        console.log('Нет аккаунтов, требующих повторного входа.');
-        await prompt('ENTER — вернуться в меню…');
+        console.log('No accounts require re-login.');
+        await prompt('ENTER — return to the menu…');
         return;
     }
 
-    console.log('\nАккаунты с истёкшим токеном:');
+    console.log('\nAccounts with expired tokens:');
     broken.forEach((account, index) => console.log(`${index + 1} - ${account.id}`));
 
-    const choice = Number.parseInt(await prompt('Номер аккаунта для повторного входа: '), 10);
+    const choice = Number.parseInt(await prompt('Account number to re-login: '), 10);
     if (Number.isNaN(choice) || choice < 1 || choice > broken.length) {
-        console.log('Неверный выбор.');
+        console.log('Invalid choice.');
         return;
     }
 
     const account = broken[choice - 1];
-    logInfo(`Повторная авторизация: ${account.id}`);
+    logInfo(`Re-authentication: ${account.id}`);
 
     if (!await initBrowser(true, true)) {
-        logError('Не удалось запустить браузер.');
+        logError('Failed to launch the browser.');
         return;
     }
 
@@ -104,35 +104,35 @@ export async function reloginAccountInteractive() {
     await shutdownBrowser();
 
     if (!token) {
-        logError('Не удалось извлечь токен.');
+        logError('Failed to extract token.');
         return;
     }
 
     markValid(account.id, token);
     fs.writeFileSync(path.join(accountDir(account.id), 'token.txt'), token, 'utf8');
-    logInfo(`Токен обновлён: ${account.id}`);
+    logInfo(`Token updated: ${account.id}`);
 }
 
 export async function removeAccountInteractive() {
     const accounts = listAccounts();
     if (accounts.length === 0) {
-        console.log('Нет сохранённых аккаунтов.');
-        await prompt('ENTER — вернуться…');
+        console.log('No saved accounts.');
+        await prompt('ENTER — return…');
         return;
     }
 
     printAccounts(accounts);
-    const answer = await prompt('Номер аккаунта для удаления (ENTER — отмена): ');
+    const answer = await prompt('Account number to remove (ENTER — cancel): ');
     if (!answer) return;
 
     const choice = Number.parseInt(answer, 10);
     if (Number.isNaN(choice) || choice < 1 || choice > accounts.length) {
-        console.log('Неверный выбор.');
+        console.log('Invalid choice.');
         return;
     }
 
     const account = accounts[choice - 1];
-    const confirm = await prompt(`Удалить ${account.id}? (y/N): `);
+    const confirm = await prompt(`Remove ${account.id}? (y/N): `);
     if (confirm.toLowerCase() !== 'y') return;
 
     removeAccount(account.id);
@@ -140,26 +140,26 @@ export async function removeAccountInteractive() {
         const dir = safeJoin(ACCOUNTS_DIR, account.id);
         if (dir && fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
     } catch (error) {
-        logError(`Не удалось удалить директорию аккаунта ${account.id}`, error);
+        logError(`Failed to delete account directory ${account.id}`, error);
     }
 
-    logInfo(`Аккаунт ${account.id} удалён.`);
+    logInfo(`Account ${account.id} removed.`);
 }
 
 export async function interactiveAccountMenu() {
     for (;;) {
         printAccounts();
-        console.log('\n=== Управление аккаунтами ===');
-        console.log('1 - Добавить аккаунт');
-        console.log('2 - Перелогинить аккаунт');
-        console.log('3 - Удалить аккаунт');
-        console.log('4 - Выход');
+        console.log('\n=== Account management ===');
+        console.log('1 - Add account');
+        console.log('2 - Re-login account');
+        console.log('3 - Remove account');
+        console.log('4 - Exit');
 
-        const choice = await prompt('Ваш выбор: ');
+        const choice = await prompt('Your choice: ');
         if (choice === '1') await addAccountInteractive();
         else if (choice === '2') await reloginAccountInteractive();
         else if (choice === '3') await removeAccountInteractive();
         else if (choice === '4') break;
-        else console.log('Неверный выбор.');
+        else console.log('Invalid choice.');
     }
 }

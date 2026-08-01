@@ -1,4 +1,4 @@
-// Загрузка файлов для последующей отправки в Qwen.
+// File uploads for later sending to Qwen.
 
 import express from 'express';
 import fs from 'fs';
@@ -17,7 +17,7 @@ const storage = multer.diskStorage({
         callback(null, ensureDir(UPLOADS_DIR));
     },
     filename(req, file, callback) {
-        // Оригинальное имя не используем в пути: оно приходит от клиента.
+        // Do not use the original name in the path: it comes from the client.
         callback(null, `${Date.now()}-${randomHex(8)}-${file.originalname.replace(/[^\w.-]+/g, '_')}`);
     }
 });
@@ -28,7 +28,7 @@ router.post('/files/getstsToken', async (req, res, next) => {
     try {
         const fileInfo = req.body;
         if (!fileInfo?.filename || !fileInfo?.filesize || !fileInfo?.filetype) {
-            return res.status(400).json({ error: 'Некорректные данные о файле' });
+            return res.status(400).json({ error: 'Invalid file data' });
         }
         return res.json(await getStsToken(fileInfo));
     } catch (error) {
@@ -37,18 +37,18 @@ router.post('/files/getstsToken', async (req, res, next) => {
 });
 
 router.post('/files/upload', upload.single('file'), async (req, res, next) => {
-    if (!req.file) return res.status(400).json({ error: 'Файл не был загружен' });
+    if (!req.file) return res.status(400).json({ error: 'File was not uploaded' });
 
     try {
-        logInfo(`Файл принят: ${req.file.originalname} (${req.file.size} байт)`);
+        logInfo(`File received: ${req.file.originalname} (${req.file.size} bytes)`);
         const result = await uploadFileToQwen(req.file.path);
 
         if (!result.success) {
-            logError(`Не удалось загрузить файл в OSS: ${result.error}`);
-            return res.status(502).json({ error: 'Ошибка при загрузке файла', message: result.error });
+            logError(`Failed to upload file to OSS: ${result.error}`);
+            return res.status(502).json({ error: 'File upload error', message: result.error });
         }
 
-        logInfo(`Файл загружен в OSS: ${result.fileName}`);
+        logInfo(`File uploaded to OSS: ${result.fileName}`);
         return res.json({
             success: true,
             file: {
@@ -61,8 +61,8 @@ router.post('/files/upload', upload.single('file'), async (req, res, next) => {
     } catch (error) {
         next(error);
     } finally {
-        // Временный файл нужен только на время аплоада.
-        try { fs.unlinkSync(req.file.path); } catch { /* уже удалён */ }
+        // Temporary file is only needed for the duration of the upload.
+        try { fs.unlinkSync(req.file.path); } catch { /* already removed */ }
     }
 });
 

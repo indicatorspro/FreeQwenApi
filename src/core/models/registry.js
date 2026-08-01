@@ -1,5 +1,5 @@
-// Список моделей, доступных аккаунту. Источник — src/AvailableModels.txt,
-// который обновляется скриптом models:sync.
+// List of models available to the account. Source — src/AvailableModels.txt,
+// which is updated by the models:sync script.
 
 import fs from 'fs';
 
@@ -12,7 +12,7 @@ let cache = null;
 function readModelsFile() {
     try {
         if (!fs.existsSync(MODELS_FILE)) {
-            logError(`Файл со списком моделей не найден: ${MODELS_FILE}`);
+            logError(`Models list file not found: ${MODELS_FILE}`);
             return [config.server.defaultModel];
         }
         const models = fs.readFileSync(MODELS_FILE, 'utf8')
@@ -22,7 +22,7 @@ function readModelsFile() {
 
         return models.length > 0 ? models : [config.server.defaultModel];
     } catch (error) {
-        logError('Ошибка чтения списка моделей', error);
+        logError('Error reading models list', error);
         return [config.server.defaultModel];
     }
 }
@@ -33,7 +33,7 @@ export function getAvailableModels() {
     return cache;
 }
 
-/** Сбрасывает кеш (после models:sync). */
+/** Resets the cache (after models:sync). */
 export function reloadModels() {
     cache = null;
     return getAvailableModels();
@@ -43,7 +43,7 @@ export function isValidModel(model) {
     return getAvailableModels().includes(model);
 }
 
-/** Список моделей в формате OpenAI `GET /v1/models`. */
+/** Model list in OpenAI `GET /v1/models` format. */
 export function listModelsOpenAI() {
     return {
         object: 'list',
@@ -59,6 +59,6 @@ export function listModelsOpenAI() {
 
 export function logAvailableModels() {
     const models = getAvailableModels();
-    logInfo(`Доступно моделей: ${models.length}`);
+    logInfo(`Available models: ${models.length}`);
     return models;
 }

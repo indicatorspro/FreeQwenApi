@@ -1,8 +1,8 @@
 const BASE_URL = 'http://localhost:3264/api';
 
 async function testServerSidePolling() {
-    console.log('\n=== Режим 1: polling на стороне сервера (waitForCompletion=true) ===');
-    console.log('Сервер сам ждёт завершения...');
+    console.log('\n=== Mode 1: Server-side polling (waitForCompletion=true) ===');
+    console.log('Server waits for completion on its own...');
 
     const start = Date.now();
 
@@ -11,7 +11,7 @@ async function testServerSidePolling() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                message: 'Мирный горный пейзаж с текущими реками',
+                message: 'Peaceful mountain landscape with flowing rivers',
                 model: 'qwen3-vl-plus',
                 chatType: 't2v',
                 size: '16:9',
@@ -23,7 +23,7 @@ async function testServerSidePolling() {
         const sec = ((Date.now() - start) / 1000).toFixed(1);
 
         if (data.error) {
-            console.log(`ОШИБКА (${sec}s): ${data.error}`);
+            console.log(`ERROR (${sec}s): ${data.error}`);
             return { ok: false, sec };
         }
 
@@ -32,14 +32,14 @@ async function testServerSidePolling() {
         return { ok: true, sec };
     } catch (e) {
         const sec = ((Date.now() - start) / 1000).toFixed(1);
-        console.log(`ОШИБКА (${sec}s): ${e.message}`);
+        console.log(`ERROR (${sec}s): ${e.message}`);
         return { ok: false, sec };
     }
 }
 
 async function testClientSidePolling() {
-    console.log('\n=== Режим 2: polling на стороне клиента (waitForCompletion=false) ===');
-    console.log('Сервер сразу отдаёт task_id, клиент сам поллит...');
+    console.log('\n=== Mode 2: Client-side polling (waitForCompletion=false) ===');
+    console.log('Server returns task_id immediately, client polls on its own...');
 
     const start = Date.now();
 
@@ -48,7 +48,7 @@ async function testClientSidePolling() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                message: 'Тихий лес, солнечные лучи проходят сквозь деревья',
+                message: 'Quiet forest, sunbeams passing through the trees',
                 model: 'qwen3-vl-plus',
                 chatType: 't2v',
                 size: '16:9',
@@ -60,11 +60,11 @@ async function testClientSidePolling() {
         const reqSec = ((Date.now() - start) / 1000).toFixed(1);
 
         if (!taskData.task_id) {
-            console.log(`ОШИБКА (${reqSec}s): task_id не получен`);
+            console.log(`ERROR (${reqSec}s): task_id not received`);
             return { ok: false, sec: reqSec };
         }
 
-        console.log(`Таск создан за ${reqSec}s, task_id: ${taskData.task_id}`);
+        console.log(`Task created in ${reqSec}s, task_id: ${taskData.task_id}`);
 
         const taskId = taskData.task_id;
         const maxAttempts = 90;
@@ -78,7 +78,7 @@ async function testClientSidePolling() {
             const sec = ((Date.now() - start) / 1000).toFixed(1);
 
             if (statusData.error) {
-                console.log(`  [${i}/${maxAttempts}] (${sec}s) Ошибка: ${statusData.error}`);
+                console.log(`  [${i}/${maxAttempts}] (${sec}s) Error: ${statusData.error}`);
                 continue;
             }
 
@@ -87,43 +87,43 @@ async function testClientSidePolling() {
 
             if (status === 'completed' || status === 'succeeded') {
                 const url = statusData.content || statusData.data?.content;
-                console.log(`OK (${sec}s, ${i} попыток): ${url}`);
+                console.log(`OK (${sec}s, ${i} attempts): ${url}`);
                 return { ok: true, sec, attempts: i };
             }
 
             if (status === 'failed' || status === 'error') {
-                console.log(`ОШИБКА (${sec}s): таск упал`);
+                console.log(`ERROR (${sec}s): task failed`);
                 return { ok: false, sec, attempts: i };
             }
         }
 
         const sec = ((Date.now() - start) / 1000).toFixed(1);
-        console.log(`ТАЙМАУТ (${sec}s, ${maxAttempts} попыток)`);
+        console.log(`TIMEOUT (${sec}s, ${maxAttempts} attempts)`);
         return { ok: false, sec, timeout: true };
     } catch (e) {
         const sec = ((Date.now() - start) / 1000).toFixed(1);
-        console.log(`ОШИБКА (${sec}s): ${e.message}`);
+        console.log(`ERROR (${sec}s): ${e.message}`);
         return { ok: false, sec };
     }
 }
 
 async function main() {
     console.log('==============================================');
-    console.log(' Тест сравнения polling для генерации видео');
+    console.log(' Video generation polling comparison test');
     console.log('==============================================');
 
     const server = await testServerSidePolling();
 
-    console.log('\n--- Пауза 5 сек перед следующим тестом ---\n');
+    console.log('\n--- Pausing 5 sec before the next test ---\n');
     await new Promise(r => setTimeout(r, 5000));
 
     const client = await testClientSidePolling();
 
     console.log('\n==============================================');
-    console.log(' Результаты');
+    console.log(' Results');
     console.log('==============================================');
-    console.log(`Серверный polling: ${server.ok ? 'OK' : 'ОШИБКА'} (${server.sec}s)`);
-    console.log(`Клиентский polling: ${client.ok ? 'OK' : 'ОШИБКА'} (${client.sec}s)`);
+    console.log(`Server-side polling: ${server.ok ? 'OK' : 'ERROR'} (${server.sec}s)`);
+    console.log(`Client-side polling: ${client.ok ? 'OK' : 'ERROR'} (${client.sec}s)`);
     console.log('==============================================\n');
 
     process.exit(server.ok || client.ok ? 0 : 1);

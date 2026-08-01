@@ -1,4 +1,4 @@
-// Получение и проверка токенов Qwen.
+// Getting and validating Qwen tokens.
 
 import { config } from '../../config/index.js';
 import { delay } from '../../shared/async.js';
@@ -12,8 +12,8 @@ import { withPage } from './pagePool.js';
 import { postViaBrowser } from './transport.js';
 
 /**
- * Достаёт токен из localStorage страницы Qwen.
- * @param {unknown} context — контекст браузера
+ * Extracts token from Qwen page localStorage.
+ * @param {unknown} context — browser context
  * @param {boolean} [forceRefresh]
  * @returns {Promise<string|null>}
  */
@@ -31,23 +31,23 @@ export async function extractAuthToken(context, forceRefresh = false) {
 
             const token = await page.evaluate(() => localStorage.getItem('token'));
             if (!token) {
-                logError('Токен авторизации не найден в браузере');
+                logError('Authorization token not found in browser');
                 return null;
             }
 
             setAuthToken(token);
             saveAuthToken(token);
-            logInfo('Токен авторизации извлечён из браузера');
+            logInfo('Authorization token extracted from browser');
             return token;
         });
     } catch (error) {
-        logError('Ошибка при извлечении токена авторизации', error);
+        logError('Error extracting authorization token', error);
         return null;
     }
 }
 
 /**
- * Выбирает аккаунт для запроса: сначала пул, затем — токен самого браузера.
+ * Selects account for request: first pool, then — browser's own token.
  * @param {unknown} context
  * @returns {Promise<{id: string, token: string}|null>}
  */
@@ -55,17 +55,17 @@ export async function resolveAccount(context) {
     const account = nextAvailableAccount();
     if (account?.token) {
         setAuthToken(account.token);
-        logInfo(`Используется аккаунт: ${account.id}`);
+        logInfo(`Using account: ${account.id}`);
         return { id: account.id, token: account.token };
     }
 
     if (isBrowserTokenRateLimited()) {
-        logWarn('Токен браузера исчерпал лимит, фолбэк невозможен');
+        logWarn('Browser token has exhausted its limit, fallback is impossible');
         return null;
     }
 
     if (!getAuthenticationStatus()) {
-        logInfo('Проверка авторизации…');
+        logInfo('Checking authentication…');
         const authenticated = await checkAuthentication(context);
         if (!authenticated) return null;
     }
@@ -79,7 +79,7 @@ export function hasAnyAccount() {
 }
 
 /**
- * Проверяет токен реальным запросом к Qwen.
+ * Verifies a token with a real request to Qwen.
  * @returns {Promise<'OK'|'UNAUTHORIZED'|'RATELIMIT'|'ERROR'>}
  */
 export async function testToken(context, token) {
@@ -101,14 +101,14 @@ export async function testToken(context, token) {
                 }
             });
 
-            // 400 означает, что запрос дошёл и был авторизован — токен рабочий.
+            // 400 means the request reached the server and was authorized — the token works.
             if (result.ok || result.status === 400) return 'OK';
             if (result.status === 401 || result.status === 403) return 'UNAUTHORIZED';
             if (result.status === 429) return 'RATELIMIT';
             return 'ERROR';
         });
     } catch (error) {
-        logError('Ошибка проверки токена', error);
+        logError('Token verification error', error);
         return 'ERROR';
     }
 }

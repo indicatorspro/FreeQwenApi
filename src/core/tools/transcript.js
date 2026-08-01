@@ -1,14 +1,14 @@
-// Перенос истории OpenAI-диалога в одно сообщение для Qwen Chat.
+// Transferring OpenAI dialog history into single message for Qwen Chat.
 //
-// У Qwen Chat нет ролей `tool`/`assistant.tool_calls`: он хранит собственную
-// историю на сервере. Когда агент присылает результат инструмента, продолжать
-// «серверную» ветку нельзя — результат в неё не попадёт. Поэтому такой ход
-// сворачивается в один запрос, оформленный в той же нотации <tool_call>/
-// <tool_response>, что и chat-template Qwen.
+// Qwen Chat has no `tool`/`assistant.tool_calls` roles: it stores own
+// history on server. When agent sends tool result, can't continue
+// "server" branch — result won't get into it. Therefore such turn
+// is folded into single request, formatted in same <tool_call>/
+// response> notation as Qwen chat-template.
 
 import { config } from '../../config/index.js';
 
-/** Приводит content любого формата OpenAI к тексту. */
+/** Converts content of any OpenAI format to text. */
 export function stringifyContent(content) {
     if (content === null || content === undefined) return '';
     if (typeof content === 'string') return content;
@@ -31,7 +31,7 @@ export function stringifyContent(content) {
 function truncateResult(text) {
     const limit = config.tools.resultMaxChars;
     if (text.length <= limit) return text;
-    return `${text.slice(0, limit)}\n… [результат обрезан: ${text.length - limit} символов]`;
+    return `${text.slice(0, limit)}\n… [result truncated: ${text.length - limit} chars]`;
 }
 
 function renderToolCalls(toolCalls) {
@@ -39,7 +39,7 @@ function renderToolCalls(toolCalls) {
         const fn = call.function || call;
         let args = fn.arguments;
         if (typeof args === 'string') {
-            try { args = JSON.parse(args); } catch { /* оставляем строкой */ }
+            try { args = JSON.parse(args); } catch { /* keep as string */ }
         }
         return `<tool_call>\n${JSON.stringify({ name: fn.name, arguments: args ?? {} })}\n</tool_call>`;
     }).join('\n');
@@ -76,7 +76,7 @@ function renderMessage(message, toolNameById) {
     }
 }
 
-/** Соответствие tool_call_id → имя функции, чтобы подписать результаты. */
+/** Mapping tool_call_id → function name, used to label results. */
 function mapToolNames(messages) {
     const map = new Map();
     for (const message of messages || []) {
@@ -88,7 +88,7 @@ function mapToolNames(messages) {
     return map;
 }
 
-/** Сворачивает историю в один текстовый блок. */
+/** Collapses history into a single text block. */
 export function buildTranscript(messages) {
     const toolNameById = mapToolNames(messages);
     return (messages || [])
@@ -97,7 +97,7 @@ export function buildTranscript(messages) {
         .join('\n\n');
 }
 
-/** Есть ли в истории состояние инструментов (вызовы или их результаты). */
+/** Whether the history contains tool state (calls or their results). */
 export function hasToolState(messages) {
     return (messages || []).some(message =>
         message?.role === 'tool' ||
@@ -108,7 +108,7 @@ export function hasToolState(messages) {
 }
 
 /**
- * Нужно ли сворачивать историю вместо опоры на серверную память Qwen.
+ * Whether history should be collapsed instead of relying on Qwen server-side memory.
  * @param {Array} messages
  * @param {import('../registry.js').ToolRegistry|null} registry
  * @param {string|null} chatId
@@ -117,21 +117,21 @@ export function shouldFoldTranscript(messages, registry, chatId) {
     const conversational = (messages || []).filter(message => message && message.role !== 'system');
     if (conversational.length === 0) return false;
 
-    // Результат инструмента в серверную историю Qwen не положить — только текстом.
+    // A tool result cannot be placed into Qwen server history — only as text.
     if (hasToolState(messages)) return true;
 
-    // Полностью stateless-режим: клиент сам ведёт историю и не дал chatId.
+    // Fully stateless mode: the client maintains history itself and did not provide a chatId.
     if (!chatId && conversational.length > 1) return true;
 
-    // С инструментами дисциплина вызовов должна быть видна модели целиком,
-    // а не зависеть от того, что Qwen запомнил в своей ветке.
+    // With tools, the call discipline must be fully visible to the model,
+    // rather than depending on what Qwen remembered in its own branch.
     if (registry && !registry.isEmpty && conversational.length > 1) return true;
 
     return false;
 }
 
 /**
- * Готовит вход для Qwen из массива сообщений OpenAI.
+ * Prepares input for Qwen from an array of OpenAI messages.
  * @returns {{messageContent: unknown, files: Array, folded: boolean, missingUser: boolean}}
  */
 export function prepareMessageInput(messages, registry, chatId) {

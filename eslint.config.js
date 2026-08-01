@@ -17,8 +17,8 @@ export default [
             }
         },
         rules: {
-            // ignoreRestSiblings: `const { index, ...rest } = call` — стандартный
-            // способ выкинуть поле из объекта, а не забытая переменная.
+            // ignoreRestSiblings: `const { index, ...rest } = call` — standard
+            // way to drop a field from an object, not a forgotten variable.
             'no-unused-vars': ['error', {
                 argsIgnorePattern: '^_',
                 varsIgnorePattern: '^_',

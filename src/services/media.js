@@ -1,5 +1,5 @@
-// Генерация изображений и видео.
-// Основной путь — Qwen Chat (chatType t2i/t2v), альтернативный — DashScope.
+// Image and video generation.
+// Main path — Qwen Chat (chatType t2i/t2v), alternative — DashScope.
 
 import { unixSeconds } from '../shared/ids.js';
 import { logError, logInfo } from '../shared/logger.js';
@@ -9,7 +9,7 @@ import { CHAT_TYPES } from '../core/qwen/payload.js';
 import { extractMediaUrl } from '../core/qwen/media.js';
 import { generateImage as generateImageViaDashScope } from '../core/dashscope/images.js';
 
-/** Модель Qwen Chat, обслуживающая генерацию медиа. */
+/** Qwen Chat model that handles media generation. */
 export const CHAT_MEDIA_MODEL = 'qwen3-vl-plus';
 
 const ASPECT_RATIO_BY_SIZE = {
@@ -32,7 +32,7 @@ const DASHSCOPE_SIZE = {
     '960x960': '960*960'
 };
 
-/** Приводит размер к соотношению сторон, которое понимает Qwen Chat. */
+/** Normalizes size to an aspect ratio understood by Qwen Chat. */
 export function normalizeAspectRatio(size, fallback = '16:9') {
     if (!size) return fallback;
     const value = String(size).trim();
@@ -46,7 +46,7 @@ export function normalizeDashScopeSize(size) {
 }
 
 /**
- * Генерация изображения.
+ * Image generation.
  * @param {object} options
  * @param {string} options.prompt
  * @param {string} [options.model]
@@ -65,7 +65,7 @@ export async function generateImage({
 }) {
     if (provider === 'dashscope') {
         let imageModel = model || 'qwen-image-plus';
-        // Клиенты OpenAI SDK по привычке шлют dall-e-*.
+        // OpenAI SDK clients habitually send dall-e-*.
         if (imageModel === 'dall-e-3' || imageModel === 'dall-e-2') imageModel = 'qwen-image-plus';
 
         const result = await generateImageViaDashScope(prompt, imageModel, {
@@ -76,8 +76,8 @@ export async function generateImage({
         });
 
         if (result.error) {
-            logError(`Ошибка генерации DashScope: ${result.error}`);
-            return { error: 'Ошибка генерации изображения', message: result.error };
+            logError(`DashScope generation error: ${result.error}`);
+            return { error: 'Image generation error', message: result.error };
         }
 
         return buildImageResponse({ imageUrl: result.imageUrl, prompt, model: imageModel, raw: result, provider: 'dashscope' });
@@ -93,16 +93,16 @@ export async function generateImage({
     });
 
     if (result.error) {
-        logError(`Ошибка генерации изображения через Qwen Chat: ${result.error}`);
-        return { error: 'Ошибка генерации изображения через Qwen Chat', message: result.error, details: result.details };
+        logError(`Image generation error via Qwen Chat: ${result.error}`);
+        return { error: 'Image generation error via Qwen Chat', message: result.error, details: result.details };
     }
 
     const imageUrl = extractMediaUrl(result, 'image') || result.choices?.[0]?.message?.content || null;
     if (!imageUrl) {
-        return { error: 'Qwen Chat не вернул URL изображения', raw: result, status: 502 };
+        return { error: 'Qwen Chat did not return an image URL', raw: result, status: 502 };
     }
 
-    logInfo(`Изображение сгенерировано: ${imageUrl}`);
+    logInfo(`Image generated: ${imageUrl}`);
     return buildImageResponse({ imageUrl, prompt, model: chatModel, raw: result });
 }
 
@@ -117,7 +117,7 @@ function buildImageResponse({ imageUrl, prompt, model, raw, provider = 'qwen-cha
 }
 
 /**
- * Генерация видео через Qwen Chat.
+ * Video generation via Qwen Chat.
  * @param {object} options
  * @param {string} options.prompt
  * @param {string} [options.model]
@@ -137,12 +137,12 @@ export async function generateVideo({ prompt, model, size = null, aspectRatio = 
     });
 
     if (result.error) {
-        logError(`Ошибка генерации видео: ${result.error}`);
-        return { error: 'Ошибка генерации видео через Qwen Chat', message: result.error, details: result.details, task_id: result.task_id };
+        logError(`Video generation error: ${result.error}`);
+        return { error: 'Video generation error via Qwen Chat', message: result.error, details: result.details, task_id: result.task_id };
     }
 
     const videoUrl = result.video_url || extractMediaUrl(result, 'video');
-    logInfo(videoUrl ? `Видео сгенерировано: ${videoUrl}` : `Создана задача генерации видео: ${result.task_id}`);
+    logInfo(videoUrl ? `Video generated: ${videoUrl}` : `Video generation task created: ${result.task_id}`);
 
     return {
         id: result.id || result.task_id || `video-${Date.now()}`,

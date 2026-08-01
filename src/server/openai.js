@@ -1,9 +1,9 @@
-// Формат ответов OpenAI: JSON и SSE.
-// Один источник истины для всех совместимых эндпоинтов.
+// OpenAI response format: JSON and SSE.
+// Single source of truth for all compatible endpoints.
 
 import { completionId, unixSeconds } from '../shared/ids.js';
 
-/** Тело ответа chat.completion. */
+/** chat.completion response body. */
 export function buildCompletionResponse(result) {
     const message = result.toolCalls
         ? { role: 'assistant', content: result.content || null, tool_calls: result.toolCalls.map(stripIndex) }
@@ -20,7 +20,7 @@ export function buildCompletionResponse(result) {
             finish_reason: result.toolCalls ? 'tool_calls' : 'stop'
         }],
         usage: result.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
-        // Метаданные для продолжения диалога в терминах Qwen.
+        // Metadata for continuing dialog in Qwen terms.
         chatId: result.chatId,
         parentId: result.parentId,
         x_qwen_chat_id: result.chatId,
@@ -33,7 +33,7 @@ function stripIndex(call) {
     return rest;
 }
 
-/** Писатель SSE-потока в формате chat.completion.chunk. */
+/** SSE stream writer in chat.completion.chunk format. */
 export class CompletionStream {
     constructor(res, model) {
         this.res = res;
@@ -46,7 +46,7 @@ export class CompletionStream {
         res.setHeader('Pragma', 'no-cache');
         res.setHeader('Expires', '0');
         res.setHeader('Connection', 'keep-alive');
-        // Отключает буферизацию у nginx — иначе поток доходит пачкой в конце.
+        // Disables nginx buffering — otherwise stream arrives in batch at end.
         res.setHeader('X-Accel-Buffering', 'no');
         res.flushHeaders?.();
     }
@@ -66,7 +66,7 @@ export class CompletionStream {
         });
     }
 
-    /** Первый чанк с ролью — его ждут многие клиенты. */
+    /** First chunk with role — many clients wait for it. */
     start() {
         this.chunk({ role: 'assistant' });
     }
@@ -76,7 +76,7 @@ export class CompletionStream {
         this.chunk({ content: text });
     }
 
-    /** Вызовы инструментов отдельными дельтами, как это делает OpenAI. */
+    /** Tool calls as separate deltas, as OpenAI does. */
     toolCalls(calls) {
         calls.forEach((call, position) => {
             this.chunk({
@@ -91,7 +91,7 @@ export class CompletionStream {
     }
 
     error(message) {
-        this.chunk({ content: `Ошибка: ${message}` });
+        this.chunk({ content: `Error: ${message}` });
     }
 
     end(finishReason = 'stop') {
@@ -103,7 +103,7 @@ export class CompletionStream {
     }
 }
 
-/** Тело ошибки в формате OpenAI. */
+/** Error body in OpenAI format. */
 export function buildErrorResponse(message, type = 'server_error', details = null) {
     return { error: { message, type, ...(details ? { details } : {}) } };
 }

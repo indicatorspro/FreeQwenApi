@@ -1,9 +1,9 @@
 import readline from 'readline';
 
 /**
- * Читает строку из stdin.
- * @param {string} question — текст вопроса
- * @returns {Promise<string>} — ответ без окружающих пробелов
+ * Reads a line from stdin.
+ * @param {string} question — prompt text
+ * @returns {Promise<string>} — answer without surrounding whitespace
  */
 export function prompt(question) {
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout });

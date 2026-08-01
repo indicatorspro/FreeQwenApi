@@ -1,6 +1,6 @@
-// OpenAI-совместимый эндпоинт chat completions.
-// Один обработчик обслуживает и /api/chat/completions, и /api/v1/chat/completions
-// (версия убирается middleware stripVersionPrefix).
+// OpenAI-compatible chat completions endpoint.
+// A single handler serves both /api/chat/completions and /api/v1/chat/completions
+// (the version prefix is stripped by the stripVersionPrefix middleware).
 
 import express from 'express';
 
@@ -14,7 +14,7 @@ import { clientKey } from '../middleware/index.js';
 
 const router = express.Router();
 
-/** Собирает запрос к сервису из HTTP-запроса. */
+/** Builds a service request from the HTTP request. */
 function buildCompletionRequest(req) {
     const body = req.body || {};
     const headers = req.headers || {};
@@ -35,8 +35,8 @@ function buildCompletionRequest(req) {
 
 router.get('/chat/completions', (req, res) => {
     res.status(405).json({
-        error: 'Метод не поддерживается',
-        message: 'Используйте POST /api/chat/completions'
+        error: 'Method not supported',
+        message: 'Use POST /api/chat/completions'
     });
 });
 
@@ -44,7 +44,7 @@ router.post('/chat/completions', async (req, res, next) => {
     try {
         const body = req.body || {};
         const stream = Boolean(body.stream);
-        logInfo(`OpenAI-совместимый запрос${stream ? ' (stream)' : ''}`);
+        logInfo(`OpenAI-compatible request${stream ? ' (stream)' : ''}`);
 
         const request = buildCompletionRequest(req);
 
@@ -59,7 +59,7 @@ router.post('/chat/completions', async (req, res, next) => {
         const sse = new CompletionStream(res, mapModel(body.model));
         sse.start();
 
-        // Клиент ушёл — дальше писать некуда.
+        // The client left — there is nowhere to write further.
         res.on('close', () => { sse.closed = true; });
 
         const result = await runCompletion(request, { onContent: (text) => sse.content(text) });
@@ -77,7 +77,7 @@ router.post('/chat/completions', async (req, res, next) => {
         return sse.end('stop');
     } catch (error) {
         if (res.headersSent) {
-            try { res.end(); } catch { /* соединение уже закрыто */ }
+            try { res.end(); } catch { /* connection already closed */ }
             return undefined;
         }
         return next(error);

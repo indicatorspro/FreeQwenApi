@@ -1,16 +1,16 @@
-// Определение чата Qwen для входящего запроса.
+// Determines the Qwen chat for an incoming request.
 //
-// Клиенты идентифицируют диалог по-разному: OpenWebUI шлёт conversation_id,
-// агенты — свой chat_id, кто-то не шлёт ничего. Плюс OpenWebUI отправляет
-// служебные (meta) запросы вроде генерации заголовка — их нельзя привязывать
-// к основному чату, иначе они засоряют историю.
+// Clients identify conversations differently: OpenWebUI sends conversation_id,
+// agents send their own chat_id, some send nothing at all. Additionally, OpenWebUI
+// sends service (meta) requests like title generation — these must not be bound
+// to the main chat, otherwise they pollute the history.
 
 import { config } from '../../config/index.js';
 import { normalizeId, pickFirstId, randomHex, shortHash } from '../../shared/ids.js';
 import { logDebug, logInfo } from '../../shared/logger.js';
 import { getSession } from './store.js';
 
-/** Служебный запрос OpenWebUI (заголовок чата, теги, автодополнение). */
+/** OpenWebUI service request (chat title, tags, autocomplete). */
 export function isMetaRequest(messages) {
     if (!Array.isArray(messages) || messages.length === 0) return false;
 
@@ -28,7 +28,7 @@ export function isMetaRequest(messages) {
     return false;
 }
 
-/** Идентификатор диалога, присланный клиентом любым из известных способов. */
+/** Conversation identifier sent by the client via any known method. */
 export function extractConversationHint({ body = {}, headers = {} }) {
     const metadata = body && typeof body.metadata === 'object' ? body.metadata : {};
     return pickFirstId([
@@ -68,7 +68,7 @@ function isTruthyFlag(value) {
     return ['1', 'true', 'yes', 'on'].includes(value.trim().toLowerCase());
 }
 
-/** Клиент явно попросил начать новый чат. */
+/** Client explicitly requested to start a new chat. */
 export function shouldForceNewChat({ body = {}, headers = {} }) {
     return [
         body.newChat,
@@ -80,18 +80,18 @@ export function shouldForceNewChat({ body = {}, headers = {} }) {
     ].some(isTruthyFlag);
 }
 
-/** Стабильный внутренний ключ чата по идентификатору диалога клиента. */
+/** Stable internal chat key derived from the client's conversation identifier. */
 export function buildChatKeyFromHint(hint) {
     const normalized = normalizeId(hint);
     if (!normalized) return null;
     return `chat_${shortHash(`client-conversation:${normalized}`)}`;
 }
 
-/** Стабильный ключ по первому сообщению пользователя (legacy-режим). */
+/** Stable key based on the first user message (legacy mode). */
 export function buildChatKeyFromHistory(messages) {
     if (!Array.isArray(messages) || messages.length === 0) return null;
 
-    // Служебные запросы OpenWebUI не должны влиять на ключ.
+    // OpenWebUI service requests must not affect the key.
     const real = messages.filter(message => {
         if (message?.role !== 'user') return true;
         const content = typeof message.content === 'string' ? message.content : '';
@@ -109,15 +109,15 @@ export function buildChatKeyFromHistory(messages) {
 }
 
 /**
- * Определяет, с каким чатом работать в этом запросе.
+ * Determines which chat to use for this request.
  *
  * @param {object} options
  * @param {Array} options.messages
- * @param {string|null} options.explicitChatId — chatId, переданный клиентом
+ * @param {string|null} options.explicitChatId — chatId passed by the client
  * @param {string|null} options.parentId
  * @param {string|null} options.conversationHint
  * @param {boolean} options.forceNewChat
- * @param {string|null} options.sessionKey — ключ клиента (ip+user-agent)
+ * @param {string|null} options.sessionKey — client key (ip+user-agent)
  * @returns {{chatId: string|null, parentId: string|null, scope: string|null, isMeta: boolean, persist: boolean}}
  */
 export function resolveConversation({
@@ -132,7 +132,7 @@ export function resolveConversation({
     const scope = conversationHint ? `conversation:${conversationHint}` : null;
 
     if (isMeta) {
-        logDebug('Служебный запрос OpenWebUI: отдельный чат без привязки к сессии');
+        logDebug('OpenWebUI service request: separate chat without session binding');
         return { chatId: null, parentId: null, scope, isMeta: true, persist: false };
     }
 
@@ -140,7 +140,7 @@ export function resolveConversation({
     let effectiveParentId = normalizeId(parentId);
 
     if (forceNewChat && !chatId) {
-        logInfo('Запрошен новый чат (newChat/resetChat)');
+        logInfo('New chat requested (newChat/resetChat)');
         return {
             chatId: `chat_${randomHex(8)}`,
             parentId: null,
@@ -155,25 +155,25 @@ export function resolveConversation({
         if (saved?.chatId) {
             chatId = saved.chatId;
             if (!effectiveParentId) effectiveParentId = saved.parentId;
-            logInfo(`Чат восстановлен по conversation_id: ${chatId}`);
+            logInfo(`Chat restored by conversation_id: ${chatId}`);
         } else {
             chatId = buildChatKeyFromHint(conversationHint);
-            logInfo(`Ключ чата построен по conversation_id клиента: ${chatId}`);
+            logInfo(`Chat key built from client conversation_id: ${chatId}`);
         }
     } else if (!chatId && config.server.allowUnscopedSessionRestore) {
-        // Legacy-режим: привязка к IP + User-Agent. Небезопасен при нескольких
-        // клиентах за одним адресом, поэтому по умолчанию выключен.
+        // Legacy mode: binding by IP + User-Agent. Unsafe when multiple clients
+        // share one address, so it is disabled by default.
         const saved = getSession(sessionKey);
         if (saved?.chatId) {
             chatId = saved.chatId;
             if (!effectiveParentId) effectiveParentId = saved.parentId;
-            logInfo(`Чат восстановлен из сессии: ${chatId}`);
+            logInfo(`Chat restored from session: ${chatId}`);
         } else {
             chatId = buildChatKeyFromHistory(messages);
-            if (chatId) logInfo(`Ключ чата построен по истории: ${chatId}`);
+            if (chatId) logInfo(`Chat key built from history: ${chatId}`);
         }
     } else if (!chatId) {
-        logDebug('Идентификатор диалога не передан, продолжение контекста отключено');
+        logDebug('No conversation identifier provided, context continuation disabled');
     }
 
     return {
@@ -185,7 +185,7 @@ export function resolveConversation({
     };
 }
 
-/** Ключ сессии, под которым хранится контекст запроса. */
+/** Session key under which the request context is stored. */
 export function buildSessionKey(clientKey, scope = null) {
     if (!clientKey) return scope || null;
     return scope ? `${clientKey}::${scope}` : clientKey;

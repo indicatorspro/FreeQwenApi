@@ -1,7 +1,7 @@
 {
-    "name": "qwen-api-proxy",
-    "version": "2.0.0",
-    "description": "Локальный OpenAI-совместимый прокси к Qwen Chat с поддержкой tool calling для агентов",
+    "name": "freeqwenapi",
+    "version": "3.0.0",
+    "description": "OpenAI-compatible proxy for Qwen Chat with tool calling, anti-bot protection (Baxia/AWSC), multi-account rotation, and MCP support",
     "main": "index.js",
     "type": "module",
     "engines": {

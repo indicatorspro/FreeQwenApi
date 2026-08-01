@@ -3,48 +3,48 @@ import { describe, it, expect } from 'vitest';
 import { buildToolRegistry, normalizeToolChoice, stripNamespace } from '../../src/core/tools/registry.js';
 
 const tools = [
-    { type: 'function', function: { name: 'mcp__github__create_pull_request', description: 'Создать PR', parameters: { type: 'object', properties: { title: { type: 'string' } }, required: ['title'] } } },
-    { type: 'function', function: { name: 'read_file', description: 'Прочитать файл' } }
+    { type: 'function', function: { name: 'mcp__github__create_pull_request', description: 'Create a PR', parameters: { type: 'object', properties: { title: { type: 'string' } }, required: ['title'] } } },
+    { type: 'function', function: { name: 'read_file', description: 'Read a file' } }
 ];
 
 describe('buildToolRegistry', () => {
-    it('нормализует OpenAI-формат tools', () => {
+    it('normalizes the OpenAI-format tools', () => {
         const registry = buildToolRegistry(tools, null);
         expect(registry.size).toBe(2);
         expect(registry.names).toContain('mcp__github__create_pull_request');
     });
 
-    it('принимает устаревшее поле functions', () => {
+    it('accepts the deprecated functions field', () => {
         const registry = buildToolRegistry(null, [{ name: 'legacy_fn', description: 'x' }]);
         expect(registry.names).toEqual(['legacy_fn']);
     });
 
-    it('подставляет пустую схему, если parameters не заданы', () => {
+    it('substitutes an empty schema if parameters are not set', () => {
         const registry = buildToolRegistry(tools, null);
         expect(registry.resolve('read_file').parameters).toEqual({ type: 'object', properties: {} });
     });
 
-    it('убирает дубликаты по имени', () => {
+    it('removes duplicates by name', () => {
         const registry = buildToolRegistry([...tools, tools[0]], null);
         expect(registry.size).toBe(2);
     });
 
-    it('пропускает не-функциональные инструменты', () => {
+    it('skips non-function tools', () => {
         const registry = buildToolRegistry([{ type: 'web_search_preview' }, ...tools], null);
         expect(registry.size).toBe(2);
     });
 
-    it('находит инструмент по короткому имени без MCP-префикса', () => {
+    it('finds a tool by short name without the MCP prefix', () => {
         const registry = buildToolRegistry(tools, null);
         expect(registry.resolve('create_pull_request').name).toBe('mcp__github__create_pull_request');
     });
 
-    it('находит инструмент без учёта регистра и разделителей', () => {
+    it('finds a tool regardless of case and separators', () => {
         const registry = buildToolRegistry(tools, null);
         expect(registry.resolve('Read-File').name).toBe('read_file');
     });
 
-    it('не угадывает при неоднозначном коротком имени', () => {
+    it('does not guess on an ambiguous short name', () => {
         const registry = buildToolRegistry([
             { function: { name: 'mcp__a__search' } },
             { function: { name: 'mcp__b__search' } }
@@ -52,7 +52,7 @@ describe('buildToolRegistry', () => {
         expect(registry.resolve('search')).toBeNull();
     });
 
-    it('возвращает null для неизвестного имени', () => {
+    it('returns null for an unknown name', () => {
         expect(buildToolRegistry(tools, null).resolve('nope')).toBeNull();
     });
 });

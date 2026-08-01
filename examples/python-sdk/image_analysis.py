@@ -13,7 +13,7 @@ resp = client.chat.completions.create(
         {
             "role": "user",
             "content": [
-                {"type": "text", "text": "Что изображено на картинке?"},
+                {"type": "text", "text": "What is shown in the image?"},
                 {"type": "image_url", "image_url": {"url": IMAGE_URL}},
             ],
         }

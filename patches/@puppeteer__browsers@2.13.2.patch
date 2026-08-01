@@ -1,0 +1,72 @@
+diff --git a/lib/cjs/launch.js b/lib/cjs/launch.js
+index 6f8536ba37609caed1be8c0946509d670de398e7..50f5e34db5f37ba9894fb8ebdd82b5c504840229 100644
+--- a/lib/cjs/launch.js
++++ b/lib/cjs/launch.js
+@@ -24,6 +24,24 @@ const Cache_js_1 = require("./Cache.js");
+ const debug_js_1 = require("./debug.js");
+ const detectPlatform_js_1 = require("./detectPlatform.js");
+ const debugLaunch = (0, debug_js_1.debug)('puppeteer:browsers:launcher');
++const __traceEnabled = Boolean(process.env.BROWSERS_KILL_TRACE);
++const __traceFile = process.env.BROWSERS_KILL_TRACE || require("node:path").join(process.cwd(), "kill_trace.log");
++function __trace(msg) {
++    if (!__traceEnabled) return;
++    try {
++        const line = `[${new Date().toISOString()}] ${msg}\n`;
++        (0, node_fs_1.appendFileSync)(__traceFile, line);
++    }
++    catch (_e) { /* ignore */ }
++}
++function __traceStack(msg) {
++    if (!__traceEnabled) return;
++    try {
++        const stack = new Error().stack.split("\n").slice(2, 8).join(" | ");
++        __trace(`${msg} | stack: ${stack}`);
++    }
++    catch (_e) { __trace(msg); }
++}
+ /**
+  * @public
+  */
+@@ -241,9 +259,11 @@ class Process {
+         this.#signal?.removeEventListener('abort', this.#onAbort);
+     }
+     #onDriverProcessExit = (_code) => {
++        __traceStack(`EXIT-EVENT: driver process exited, code=${_code}, pid=${this.#browserProcess?.pid}`);
+         this.kill();
+     };
+     #onDriverProcessSignal = (signal) => {
++        __traceStack(`SIGNAL-EVENT: ${signal}, pid=${this.#browserProcess?.pid}`);
+         switch (signal) {
+             case 'SIGINT':
+                 this.kill();
+@@ -255,6 +275,7 @@ class Process {
+         }
+     };
+     async close() {
++        __traceStack(`CLOSE() called, pid=${this.#browserProcess?.pid}, exited=${this.#exited}`);
+         await this.#runHooks();
+         if (!this.#exited) {
+             this.kill();
+@@ -265,7 +286,7 @@ class Process {
+         return this.#browserProcessExiting;
+     }
+     kill() {
+-        debugLaunch(`Trying to kill ${this.#browserProcess.pid}`);
++        __traceStack(`KILL() called, pid=${this.#browserProcess?.pid}, pidExists=${pidExists(this.#browserProcess?.pid)}`);
+         // If the process failed to launch (for example if the browser executable path
+         // is invalid), then the process does not get a pid assigned. A call to
+         // `proc.kill` would error, as the `pid` to-be-killed can not be found.
+@@ -276,9 +297,12 @@ class Process {
+                 debugLaunch(`Browser process ${this.#browserProcess.pid} exists`);
+                 if (process.platform === 'win32') {
+                     try {
+-                        node_child_process_1.default.execSync(`taskkill /pid ${this.#browserProcess.pid} /T /F`);
++                        __trace(`TASKKILL: executing taskkill /pid ${this.#browserProcess.pid} /T /F`);
++                        const __tkResult = node_child_process_1.default.execSync(`taskkill /pid ${this.#browserProcess.pid} /T /F`, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
++                        __trace(`TASKKILL: exit OK, output: ${String(__tkResult).replace(/\n/g, ' | ').slice(0, 300)}`);
+                     }
+                     catch (error) {
++                        __trace(`TASKKILL: FAILED, error=${error?.stderr || error?.message || error}`);
+                         debugLaunch(`Killing ${this.#browserProcess.pid} using taskkill failed`, error);
+                         // taskkill can fail to kill the process e.g. due to missing permissions.
+                         // Let's kill the process via Node API. This delays killing of all child

@@ -1,17 +1,16 @@
-// Фильтр потока для режима с инструментами.
+// Stream filter for tool mode.
 //
-// Раньше при наличии `tools` стриминг просто выключался: агент несколько
-// десятков секунд не получал ничего. Причина понятна — нельзя отдавать клиенту
-// служебный JSON вызова как обычный текст. Решение: пропускать текст до тех пор,
-// пока он заведомо не является началом <tool_call>, и придерживать «подозрительный»
-// хвост до конца генерации.
+// Previously with `tools` present, streaming was simply disabled: agent received
+// nothing for several tens of seconds. Reason is clear — can't send client
+// service JSON of call as regular text. Solution: skip text until it's definitely
+// not start of <tool_call>, and hold "suspicious" tail until end of generation.
 
 import { TOOL_CALL_MARKERS, extractToolCalls } from './parser.js';
 
-/** Длина самого длинного маркера — столько символов максимум придётся держать. */
+/** Length of longest marker — that many characters maximum need to be held. */
 const MAX_MARKER_LENGTH = Math.max(...TOOL_CALL_MARKERS.map(marker => marker.length));
 
-/** Позиция первого полного маркера начиная с `from`, либо -1. */
+/** Position of first complete marker starting from `from`, or -1. */
 function findMarker(text, from) {
     let best = -1;
     for (const marker of TOOL_CALL_MARKERS) {
@@ -22,8 +21,8 @@ function findMarker(text, from) {
 }
 
 /**
- * Позиция, с которой хвост может оказаться началом маркера.
- * Например, поток закончился на "<tool_c" — отдавать это клиенту нельзя.
+ * Position from which the tail may be the beginning of a marker.
+ * For example, if the stream ended at "<tool_c" — it must not be sent to the client.
  */
 function findPartialMarkerStart(text, from) {
     const tailStart = Math.max(from, text.length - MAX_MARKER_LENGTH + 1);
@@ -35,9 +34,9 @@ function findPartialMarkerStart(text, from) {
 }
 
 /**
- * Накопитель потокового ответа с отсечением вызовов инструментов.
+ * Stream response accumulator with tool call cutoff.
  *
- * Использование:
+ * Usage:
  *   const filter = new ToolCallStreamFilter();
  *   onChunk = chunk => { const safe = filter.push(chunk); if (safe) sendContent(safe); };
  *   const { content, toolCalls } = filter.finish();
@@ -51,9 +50,9 @@ export class ToolCallStreamFilter {
     }
 
     /**
-     * Добавляет очередной фрагмент потока.
+     * Adds the next stream fragment.
      * @param {string} chunk
-     * @returns {string} — текст, который безопасно отдать клиенту прямо сейчас
+     * @returns {string} — text that is safe to send to the client right now
      */
     push(chunk) {
         if (typeof chunk !== 'string' || !chunk) return '';
@@ -65,7 +64,7 @@ export class ToolCallStreamFilter {
             return safe;
         }
 
-        // Как только встретился полный маркер, придерживаем всё до конца генерации.
+        // As soon as a full marker is encountered, hold everything until generation ends.
         if (this.holdFrom < 0) {
             const marker = findMarker(this.raw, this.released);
             if (marker >= 0) this.holdFrom = marker;
@@ -85,16 +84,16 @@ export class ToolCallStreamFilter {
         return safe;
     }
 
-    /** Весь текст ответа целиком, включая придержанный хвост. */
+    /** The entire response text, including the held-back tail. */
     get text() {
         return this.raw;
     }
 
     /**
-     * Завершает поток.
+     * Completes the stream.
      * @returns {{content: string, pending: string, toolCalls: Array|null}}
-     *          pending — придержанный текст; если вызовов не нашлось, его нужно
-     *          отдать клиенту как обычный контент, иначе ответ потеряется.
+     *          pending — held-back text; if no calls are found, it must
+     *          be sent to the client as normal content, otherwise the response will be lost.
      */
     finish() {
         const pending = this.raw.slice(this.released);

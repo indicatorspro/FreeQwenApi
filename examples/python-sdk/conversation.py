@@ -10,7 +10,7 @@ parent_id = None
 
 first = client.chat.completions.create(
     model="qwen-max-latest",
-    messages=[{"role": "user", "content": "Меня зовут Алексей. Запомни это."}],
+    messages=[{"role": "user", "content": "My name is Alex. Remember that."}],
 )
 print("Assistant:", first.choices[0].message.content)
 
@@ -19,7 +19,7 @@ if hasattr(first, "chatId"):
 if hasattr(first, "parentId"):
     parent_id = first.parentId
 
-second_messages = [{"role": "user", "content": "Как меня зовут?"}]
+second_messages = [{"role": "user", "content": "What is my name?"}]
 extra_body = {}
 if chat_id:
     extra_body["chatId"] = chat_id

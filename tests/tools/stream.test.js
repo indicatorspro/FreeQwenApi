@@ -7,14 +7,14 @@ function feed(filter, chunks) {
 }
 
 describe('ToolCallStreamFilter', () => {
-    it('пропускает обычный текст без задержки', () => {
+    it('passes regular text through without delay', () => {
         const filter = new ToolCallStreamFilter();
-        const emitted = feed(filter, ['Привет', ', ', 'как дела?']);
-        expect(emitted).toBe('Привет, как дела?');
+        const emitted = feed(filter, ['Hello', ', ', 'how are you?']);
+        expect(emitted).toBe('Hello, how are you?');
         expect(filter.finish().toolCalls).toBeNull();
     });
 
-    it('не отдаёт клиенту служебный JSON вызова', () => {
+    it('does not deliver the service JSON of the call to the client', () => {
         const filter = new ToolCallStreamFilter();
         const emitted = feed(filter, ['<tool_call>', '{"name":"read_file",', '"arguments":{"path":"a"}}', '</tool_call>']);
         expect(emitted).toBe('');
@@ -24,28 +24,28 @@ describe('ToolCallStreamFilter', () => {
         expect(result.pending).toBe('');
     });
 
-    it('стримит прозу и придерживает начавшийся вызов', () => {
+    it('streams prose and holds back a started call', () => {
         const filter = new ToolCallStreamFilter();
-        const emitted = feed(filter, ['Читаю файл. ', '<tool_call>{"name":"read_file","arguments":{"path":"a"}}</tool_call>']);
-        expect(emitted).toBe('Читаю файл. ');
+        const emitted = feed(filter, ['Reading the file. ', '<tool_call>{"name":"read_file","arguments":{"path":"a"}}</tool_call>']);
+        expect(emitted).toBe('Reading the file. ');
         expect(filter.finish().toolCalls).toHaveLength(1);
     });
 
-    it('придерживает хвост, похожий на начало маркера', () => {
+    it('holds back a tail that looks like the start of a marker', () => {
         const filter = new ToolCallStreamFilter();
-        const emitted = feed(filter, ['готово <tool_c']);
-        expect(emitted).toBe('готово ');
+        const emitted = feed(filter, ['done <tool_c']);
+        expect(emitted).toBe('done ');
     });
 
-    it('возвращает придержанный текст, если вызова так и не случилось', () => {
+    it('returns the held-back text if no call ever happened', () => {
         const filter = new ToolCallStreamFilter();
-        const emitted = feed(filter, ['вот json: ', '{"name": "не вызов"']);
+        const emitted = feed(filter, ['here is json: ', '{"name": "not a call"']);
         const result = filter.finish();
-        expect(emitted + result.pending).toBe('вот json: {"name": "не вызов"');
+        expect(emitted + result.pending).toBe('here is json: {"name": "not a call"');
         expect(result.toolCalls).toBeNull();
     });
 
-    it('в выключенном состоянии работает как сквозной канал', () => {
+    it('in the disabled state works as a pass-through channel', () => {
         const filter = new ToolCallStreamFilter({ enabled: false });
         const emitted = feed(filter, ['<tool_call>{"name":"a","arguments":{}}</tool_call>']);
         expect(emitted).toContain('<tool_call>');

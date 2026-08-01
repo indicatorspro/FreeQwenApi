@@ -1,5 +1,5 @@
-// Локальная копия истории чатов (session/history/<chatId>.json).
-// Основная история живёт на серверах Qwen; эта нужна для дашборда и отладки.
+// Local copy of chat history (session/history/<chatId>.json).
+// The primary history lives on Qwen servers; this one is for the dashboard and debugging.
 
 import fs from 'fs';
 import path from 'path';
@@ -10,7 +10,7 @@ import { logDebug, logError, logInfo } from '../../shared/logger.js';
 import { HISTORY_DIR, ensureDir } from '../../shared/paths.js';
 
 /**
- * chatId попадает в путь файла, поэтому допускаются только безопасные символы.
+ * chatId ends up in the file path, so only safe characters are allowed.
  * @returns {string|null}
  */
 function sanitizeChatId(chatId) {
@@ -22,12 +22,12 @@ function sanitizeChatId(chatId) {
 
 function historyFilePath(chatId) {
     const safeId = sanitizeChatId(chatId);
-    if (!safeId) throw new Error(`Некорректный chatId: ${String(chatId).slice(0, 50)}`);
+    if (!safeId) throw new Error(`Invalid chatId: ${String(chatId).slice(0, 50)}`);
 
     const filePath = path.join(HISTORY_DIR, `${safeId}.json`);
     const resolved = path.resolve(filePath);
     if (!resolved.startsWith(path.resolve(HISTORY_DIR) + path.sep)) {
-        throw new Error(`Путь вне директории истории: ${String(chatId).slice(0, 50)}`);
+        throw new Error(`Path outside history directory: ${String(chatId).slice(0, 50)}`);
     }
     return filePath;
 }
@@ -35,7 +35,7 @@ function historyFilePath(chatId) {
 function emptyChat(chatId) {
     return {
         id: chatId,
-        name: `Новый чат ${new Date().toLocaleString()}`,
+        name: `New chat ${new Date().toLocaleString()}`,
         created: Date.now(),
         messages: []
     };
@@ -51,7 +51,7 @@ export function saveHistory(chatId, data) {
         fs.writeFileSync(historyFilePath(chatId), JSON.stringify(data, null, 2), 'utf8');
         return true;
     } catch (error) {
-        logError(`Не удалось сохранить историю чата ${chatId}`, error);
+        logError(`Failed to save chat history ${chatId}`, error);
         return false;
     }
 }
@@ -66,28 +66,28 @@ export function loadHistory(chatId) {
         try {
             data = JSON.parse(raw);
         } catch (error) {
-            logError(`Не удалось разобрать историю чата ${chatId}`, error);
+            logError(`Failed to parse chat history ${chatId}`, error);
             return emptyChat(chatId);
         }
 
-        // Совместимость со старым форматом, где файл был просто массивом.
+        // Compatibility with the old format where the file was just an array.
         if (Array.isArray(data)) {
             return { ...emptyChat(chatId), messages: data, wasConverted: true };
         }
 
         return {
             id: data.id || chatId,
-            name: data.name || `Чат ${chatId.slice(0, 6)}`,
+            name: data.name || `Chat ${chatId.slice(0, 6)}`,
             created: data.created || Date.now(),
             messages: Array.isArray(data.messages) ? data.messages : []
         };
     } catch (error) {
-        logError(`Не удалось загрузить историю чата ${chatId}`, error);
+        logError(`Failed to load chat history ${chatId}`, error);
         return emptyChat(chatId);
     }
 }
 
-/** Дописывает пару сообщений, обрезая историю по лимиту. */
+/** Appends a pair of messages, trimming history to the limit. */
 export function appendMessages(chatId, messages) {
     if (!chatId || !Array.isArray(messages) || messages.length === 0) return false;
 
@@ -102,7 +102,7 @@ export function appendMessages(chatId, messages) {
 
         return saveHistory(chatId, chat);
     } catch (error) {
-        logDebug(`Не удалось дописать историю чата ${chatId}: ${error.message}`);
+        logDebug(`Failed to append chat history ${chatId}: ${error.message}`);
         return false;
     }
 }
@@ -120,10 +120,10 @@ export function deleteChat(chatId) {
         const filePath = historyFilePath(chatId);
         if (!fs.existsSync(filePath)) return false;
         fs.unlinkSync(filePath);
-        logInfo(`Чат ${chatId} удалён`);
+        logInfo(`Chat ${chatId} deleted`);
         return true;
     } catch (error) {
-        logError(`Не удалось удалить чат ${chatId}`, error);
+        logError(`Failed to delete chat ${chatId}`, error);
         return false;
     }
 }
@@ -146,7 +146,7 @@ export function listChats() {
             })
             .sort((a, b) => b.created - a.created);
     } catch (error) {
-        logError('Не удалось получить список чатов', error);
+        logError('Failed to get chat list', error);
         return [];
     }
 }

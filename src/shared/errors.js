@@ -1,14 +1,14 @@
-// Типизированные ошибки домена. HTTP- и MCP-слои переводят их в свои форматы,
-// поэтому ядро не должно знать ни про статус-коды Express, ни про JSON-RPC.
+// Typed domain errors. HTTP and MCP layers translate them to their formats,
+// so core should not know about Express status codes or JSON-RPC.
 
 export class AppError extends Error {
     /**
-     * @param {string} message — сообщение для пользователя
+     * @param {string} message — user-facing message
      * @param {object} [options]
-     * @param {string} [options.code] — машиночитаемый код ошибки
-     * @param {number} [options.status] — рекомендуемый HTTP-статус
-     * @param {unknown} [options.details] — дополнительные данные
-     * @param {Error} [options.cause] — исходная ошибка
+     * @param {string} [options.code] — machine-readable error code
+     * @param {number} [options.status] — recommended HTTP status
+     * @param {unknown} [options.details] — additional data
+     * @param {Error} [options.cause] — original error
      */
     constructor(message, { code = 'internal_error', status = 500, details = null, cause } = {}) {
         super(message, cause ? { cause } : undefined);
@@ -29,56 +29,56 @@ export class AppError extends Error {
     }
 }
 
-/** Некорректный запрос клиента (400). */
+/** Invalid client request (400). */
 export class ValidationError extends AppError {
     constructor(message, details = null) {
         super(message, { code: 'invalid_request_error', status: 400, details });
     }
 }
 
-/** Требуется или не прошла авторизация клиента прокси (401). */
+/** Proxy client authorization required or failed (401). */
 export class AuthError extends AppError {
     constructor(message, details = null) {
         super(message, { code: 'authentication_error', status: 401, details });
     }
 }
 
-/** Доступ запрещён (403). */
+/** Access forbidden (403). */
 export class ForbiddenError extends AppError {
     constructor(message, details = null) {
         super(message, { code: 'permission_error', status: 403, details });
     }
 }
 
-/** Ресурс не найден (404). */
+/** Resource not found (404). */
 export class NotFoundError extends AppError {
     constructor(message, details = null) {
         super(message, { code: 'not_found_error', status: 404, details });
     }
 }
 
-/** Ошибка на стороне Qwen или невозможность получить ответ (502). */
+/** Error on Qwen side or unable to get response (502). */
 export class UpstreamError extends AppError {
     constructor(message, details = null) {
         super(message, { code: 'upstream_error', status: 502, details });
     }
 }
 
-/** Все аккаунты исчерпали лимит (429). */
+/** All accounts exhausted their limit (429). */
 export class RateLimitError extends AppError {
     constructor(message, details = null) {
         super(message, { code: 'rate_limit_error', status: 429, details });
     }
 }
 
-/** Ни одного пригодного аккаунта Qwen (503). */
+/** No suitable Qwen accounts available (503). */
 export class NoAccountsError extends AppError {
     constructor(message, details = null) {
         super(message, { code: 'no_accounts_error', status: 503, details });
     }
 }
 
-/** Некорректная конфигурация окружения — фатальна на старте. */
+/** Invalid environment configuration — fatal at startup. */
 export class ConfigError extends AppError {
     constructor(message) {
         super(message, { code: 'config_error', status: 500 });
@@ -86,12 +86,12 @@ export class ConfigError extends AppError {
 }
 
 /**
- * Приводит произвольное значение к AppError, сохраняя причину.
+ * Converts arbitrary value to AppError, preserving cause.
  * @param {unknown} error
  * @param {string} [fallbackMessage]
  * @returns {AppError}
  */
-export function toAppError(error, fallbackMessage = 'Внутренняя ошибка сервера') {
+export function toAppError(error, fallbackMessage = 'Internal server error') {
     if (error instanceof AppError) return error;
     if (error instanceof Error) {
         return new AppError(error.message || fallbackMessage, { cause: error });

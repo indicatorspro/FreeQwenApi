@@ -1,14 +1,14 @@
-// Построение системной инструкции с описанием инструментов.
+// Building system instruction with tool descriptions.
 //
-// Веб-API Qwen Chat не принимает поле `tools`, поэтому вызовы эмулируются через
-// промпт. Формат берётся из штатного chat-template Qwen (<tools> + <tool_call>):
-// модель на нём обучена, и попадание в него на порядок стабильнее, чем в
-// самодельные JSON-схемы ответа.
+// Qwen Chat web API doesn't accept `tools` field, so calls are emulated via
+// prompt. Format taken from standard Qwen chat-template (<tools> + <tool_call>):
+// model is trained on it, and hitting it is order of magnitude more stable than
+// custom JSON response schemas.
 
 import { config } from '../../config/index.js';
 import { logDebug, logWarn } from '../../shared/logger.js';
 
-/** Уровни компактности: применяются по очереди, пока блок не влезет в бюджет. */
+/** Compaction levels: applied in sequence until block fits in budget. */
 const COMPACTION_LEVELS = [
     { descriptionLimit: 400, propertyDescriptionLimit: 160, maxDepth: 4, keepEnums: true },
     { descriptionLimit: 200, propertyDescriptionLimit: 80, maxDepth: 3, keepEnums: true },
@@ -23,9 +23,9 @@ function truncate(value, maxLength) {
 }
 
 /**
- * Ужимает JSON Schema до размера, пригодного для промпта.
- * Сохраняет то, без чего модель не соберёт корректный вызов: type, enum,
- * required и имена свойств.
+ * Compresses JSON Schema to size suitable for prompt.
+ * Preserves what model needs to build correct call: type, enum,
+ * required and property names.
  */
 function compactSchema(schema, level, depth = 0) {
     if (!schema || typeof schema !== 'object') return schema;
@@ -45,7 +45,7 @@ function compactSchema(schema, level, depth = 0) {
     }
 
     if (depth >= level.maxDepth) {
-        // Глубже не идём: оставляем только перечень свойств, без их схем.
+        // Don't go deeper: leave only property list, without their schemas.
         if (schema.properties && typeof schema.properties === 'object') {
             out.properties = Object.keys(schema.properties).reduce((acc, key) => {
                 acc[key] = {};
@@ -89,9 +89,9 @@ function typeLabel(schema) {
 }
 
 /**
- * Предельно плотный формат: сигнатура вместо JSON Schema.
- * Применяется, когда агент прислал столько инструментов, что схемы не влезают
- * ни в одном уровне сжатия — потерять имена нельзя, детали схем потерять можно.
+ * Extremely dense format: signature instead of JSON Schema.
+ * Used when the agent has sent so many tools that the schemas do not fit
+ * at any compression level — names cannot be lost, schema details can.
  */
 function renderSignatureLines(registry, { descriptionLimit = 0, includeParams = true } = {}) {
     return registry.tools.map(tool => {
@@ -126,10 +126,10 @@ function choiceInstruction(choice, registry) {
 }
 
 /**
- * Собирает блок описания инструментов для системного сообщения.
+ * Builds the tool description block for the system message.
  * @param {import('./registry.js').ToolRegistry} registry
  * @param {{mode: string, name: string|null}} choice
- * @returns {string} — пустая строка, если инструментов нет или выбран режим none
+ * @returns {string} — empty string if there are no tools or mode none is selected
  */
 export function buildToolsPrompt(registry, choice = { mode: 'auto', name: null }) {
     if (!registry || registry.isEmpty || choice.mode === 'none') return '';
@@ -147,9 +147,9 @@ export function buildToolsPrompt(registry, choice = { mode: 'auto', name: null }
     }
 
     if (totalLength(lines) > budget) {
-        // JSON Schema не помещается ни в одном уровне — переходим на сигнатуры.
-        // Имена инструментов урезаются в последнюю очередь: инструмент, которого
-        // нет в промпте, для модели не существует вовсе.
+        // JSON Schema does not fit at any level — switch to signatures.
+        // Tool names are trimmed last: a tool that is
+        // not in the prompt does not exist for the model at all.
         signatureMode = true;
         const fallbacks = [
             { descriptionLimit: 120, includeParams: true },
@@ -163,8 +163,8 @@ export function buildToolsPrompt(registry, choice = { mode: 'auto', name: null }
         }
 
         if (totalLength(lines) > budget) {
-            // Даже голые сигнатуры не влезают: обрезаем список, но говорим об этом
-            // и в лог, и самой модели — молча «терять» инструменты нельзя.
+            // Even bare signatures do not fit: trim the list, but report it
+            // both in the log and to the model — tools must not be "lost" silently.
             const kept = [];
             let size = 0;
             for (const line of lines) {
@@ -176,9 +176,9 @@ export function buildToolsPrompt(registry, choice = { mode: 'auto', name: null }
             lines = kept;
         }
 
-        logWarn(`Схемы ${registry.size} инструментов не помещаются в бюджет ${budget} символов: используется компактный формат сигнатур${omitted ? `, ${omitted} инструментов не попали в промпт` : ''}.`);
+        logWarn(`Schemas of ${registry.size} tools do not fit into the budget of ${budget} characters: using compact signature format${omitted ? `, ${omitted} tools were not included in the prompt` : ''}.`);
     } else if (usedLevel > 0) {
-        logDebug(`Схемы инструментов сжаты до уровня ${usedLevel} (${totalLength(lines)} символов).`);
+        logDebug(`Tool schemas compressed to level ${usedLevel} (${totalLength(lines)} characters).`);
     }
 
     const formatNote = signatureMode
@@ -214,7 +214,7 @@ Rules:
 }
 
 /**
- * Дописывает блок инструментов к системному сообщению пользователя.
+ * Appends the tool block to the user's system message.
  * @param {string|null} systemMessage
  * @param {import('./registry.js').ToolRegistry} registry
  * @param {{mode: string, name: string|null}} choice
@@ -227,8 +227,8 @@ export function applyToolsPrompt(systemMessage, registry, choice) {
 }
 
 /**
- * Корректирующее сообщение для повторной попытки, когда модель вернула
- * несуществующий инструмент или неразбираемые аргументы.
+ * Corrective message for a retry when the model returned
+ * a nonexistent tool or unparseable arguments.
  */
 export function buildRepairPrompt(problems, registry) {
     const details = problems.map(problem => `- ${problem.reason}`).join('\n');

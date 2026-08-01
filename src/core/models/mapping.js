@@ -1,14 +1,15 @@
-// Сопоставление имён моделей: клиенты называют модели по-своему (OpenAI-стиль,
-// имена с HuggingFace, старые версии), а Qwen Chat принимает конкретный набор.
+// Model name mapping: clients name models in their own ways (OpenAI style,
+// HuggingFace names, old versions), while Qwen Chat accepts a specific set.
 //
-// В прежней версии таблица содержала дубликаты ключей: `qwen3.5-plus` и
-// `qwen3.5-397b-a17b` были объявлены дважды, и вторые объявления молча
-// затирали первые вместе с их алиасами. Здесь каждая модель встречается один раз.
+// In the previous version the table contained duplicate keys: `qwen3.5-plus` and
+// `qwen3.5-397b-a17b` were declared twice, and the second declarations silently
+// overwrote the first ones together with their aliases. Here each model appears once.
 
 import { config } from '../../config/index.js';
 
-/** Модели, которые Qwen Chat принимает как есть. */
+/** Models that Qwen Chat accepts as-is. */
 export const CANONICAL_MODELS = Object.freeze([
+    'qwen3.8-max-preview',
     'qwen3.7-max',
     'qwen3.7-plus',
     'qwen3.6-plus',
@@ -41,8 +42,9 @@ export const CANONICAL_MODELS = Object.freeze([
 
 const CANONICAL_SET = new Set(CANONICAL_MODELS);
 
-/** Алиасы: чужое имя → каноническая модель. */
+/** Aliases: external name → canonical model. */
 const ALIAS_GROUPS = Object.freeze({
+    'qwen3.8-max-preview': ['qwen3.8-max', 'qwen-3.8-max', 'qwen38-max', 'qwen38max', 'Qwen3.8-Max', 'Qwen3.8-Max-Preview'],
     'qwen3.7-max': ['Qwen3.7-Max', 'qwen3.7-max-latest', 'qwen-3.7-max', 'qwen37-max', 'qwen37max'],
     'qwen3.7-plus': ['qwen3.7', 'Qwen3.7-Plus', 'qwen3.7-plus-latest', 'qwen-3.7-plus', 'qwen37-plus', 'qwen37plus'],
     'qwen3.6-plus': ['qwen3.6', 'Qwen3.6-Plus', 'qwen3.6-plus-latest', 'qwen-3.6-plus', 'qwen36-plus', 'qwen36plus'],
@@ -90,7 +92,7 @@ function buildMapping() {
 
     for (const model of CANONICAL_MODELS) {
         mapping[model] = model;
-        // Регистронезависимый поиск: клиенты шлют и Qwen3-Max, и qwen3-max.
+        // Case-insensitive lookup: clients send both Qwen3-Max and qwen3-max.
         mapping[model.toLowerCase()] = model;
     }
 
@@ -109,7 +111,7 @@ function buildMapping() {
 export const MODEL_MAPPING = buildMapping();
 
 /**
- * Приводит запрошенное имя модели к тому, что понимает Qwen Chat.
+ * Normalizes the requested model name to one that Qwen Chat understands.
  * @param {string} requestedModel
  * @param {string} [defaultModel]
  * @returns {string}

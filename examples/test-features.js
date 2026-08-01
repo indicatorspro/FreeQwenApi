@@ -1,38 +1,38 @@
 const BASE_URL = 'http://localhost:3264/api';
 
 async function testChat() {
-    console.log('\n=== Тест: Текстовый чат (t2t) ===');
+    console.log('\n=== Test: Text chat (t2t) ===');
     try {
         const response = await fetch(`${BASE_URL}/chat`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                message: 'Назови столицу Франции.',
+                message: 'Name the capital of France.',
                 model: 'qwen-max-latest'
             })
         });
 
         const data = await response.json();
         if (data.error) {
-            console.log('ОШИБКА:', data.error);
+            console.log('ERROR:', data.error);
             return false;
         }
         console.log('OK:', data.choices[0].message.content.substring(0, 100));
         return true;
     } catch (error) {
-        console.log('ОШИБКА:', error.message);
+        console.log('ERROR:', error.message);
         return false;
     }
 }
 
 async function testImageGeneration() {
-    console.log('\n=== Тест: Генерация изображения (t2i) ===');
+    console.log('\n=== Test: Image generation (t2i) ===');
     try {
         const response = await fetch(`${BASE_URL}/chat`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                message: 'Красивый закат над спокойным океаном с оранжевыми и розовыми облаками',
+                message: 'Beautiful sunset over a calm ocean with orange and pink clouds',
                 model: 'qwen3-vl-plus',
                 chatType: 't2i',
                 size: '16:9'
@@ -41,26 +41,26 @@ async function testImageGeneration() {
 
         const data = await response.json();
         if (data.error) {
-            console.log('ОШИБКА:', data.error);
+            console.log('ERROR:', data.error);
             return false;
         }
         console.log('OK:', data.choices[0].message.content.substring(0, 120));
         return true;
     } catch (error) {
-        console.log('ОШИБКА:', error.message);
+        console.log('ERROR:', error.message);
         return false;
     }
 }
 
 async function testVideoGeneration() {
-    console.log('\n=== Тест: Генерация видео (t2v) ===');
-    console.log('(может занять 1-2 минуты)');
+    console.log('\n=== Test: Video generation (t2v) ===');
+    console.log('(may take 1-2 minutes)');
     try {
         const response = await fetch(`${BASE_URL}/chat`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                message: 'Тихий лес, солнечные лучи проходят сквозь деревья',
+                message: 'Quiet forest, sunbeams passing through the trees',
                 model: 'qwen3-vl-plus',
                 chatType: 't2v',
                 size: '16:9'
@@ -69,20 +69,20 @@ async function testVideoGeneration() {
 
         const data = await response.json();
         if (data.error) {
-            console.log('ОШИБКА:', data.error);
+            console.log('ERROR:', data.error);
             return false;
         }
         console.log('OK:', data.video_url || data.choices[0].message.content.substring(0, 120));
         return true;
     } catch (error) {
-        console.log('ОШИБКА:', error.message);
+        console.log('ERROR:', error.message);
         return false;
     }
 }
 
 async function main() {
     console.log('==============================');
-    console.log(' Тесты возможностей FreeQwenApi');
+    console.log(' FreeQwenApi Feature Tests');
     console.log('==============================');
 
     const chat = await testChat();
@@ -90,11 +90,11 @@ async function main() {
     const video = await testVideoGeneration();
 
     console.log('\n==============================');
-    console.log(' Результаты');
+    console.log(' Results');
     console.log('==============================');
-    console.log('Чат (t2t):', chat ? 'OK' : 'ОШИБКА');
-    console.log('Изображение (t2i):', image ? 'OK' : 'ОШИБКА');
-    console.log('Видео (t2v):', video ? 'OK' : 'ОШИБКА');
+    console.log('Chat (t2t):', chat ? 'OK' : 'ERROR');
+    console.log('Image (t2i):', image ? 'OK' : 'ERROR');
+    console.log('Video (t2v):', video ? 'OK' : 'ERROR');
     console.log('==============================\n');
 
     process.exit(chat && image && video ? 0 : 1);

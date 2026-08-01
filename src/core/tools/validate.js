@@ -1,8 +1,8 @@
-// Проверка и починка вызова перед отдачей клиенту.
+// Validation and repair of call before sending to client.
 //
-// Клиент (Codex, Claude Code, OpenCode) исполняет вызов буквально: неверное имя
-// или строка "5" вместо числа роняют его сторону, а не нашу. Поэтому имя
-// разрешается через реестр, а аргументы приводятся к типам из JSON Schema.
+// Client (Codex, Claude Code, OpenCode) executes call literally: wrong name
+// or string "5" instead of number crashes their side, not ours. Therefore name
+// is resolved via registry, and arguments are coerced to types from JSON Schema.
 
 import { config } from '../../config/index.js';
 import { toolCallId } from '../../shared/ids.js';
@@ -30,12 +30,12 @@ function matchesType(value, type) {
     }
 }
 
-/** Приводит значение к типу из схемы; возвращает исходное, если привести нельзя. */
+/** Coerces value to type from schema; returns original if cannot coerce. */
 function coerceValue(value, schema) {
     const types = schemaTypes(schema);
     if (types.length === 0) return value;
     if (types.some(type => matchesType(value, type))) {
-        // Уже подходящий тип — но вложенные поля объекта/массива стоит проверить.
+        // Already suitable type — but nested object/array fields should be checked.
         if (matchesType(value, 'object') && schema.properties) return coerceObject(value, schema);
         if (Array.isArray(value) && schema.items) return value.map(item => coerceValue(item, schema.items));
         return value;
@@ -65,7 +65,7 @@ function coerceValue(value, schema) {
         }
     }
 
-    // Модель часто отдаёт одиночное значение там, где ждут массив из одного элемента.
+    // The model often returns a single value where an array of one element is expected.
     if (target === 'array' && value !== null && value !== undefined) {
         const items = schema.items ? coerceValue(value, schema.items) : value;
         return [items];
@@ -89,7 +89,7 @@ function missingRequired(args, schema) {
 }
 
 /**
- * Разбирает аргументы, какими бы их ни прислала модель.
+ * Parses arguments no matter how the model sent them.
  * @returns {{args: object}|{error: string}}
  */
 function readArguments(raw, tool) {
@@ -101,8 +101,8 @@ function readArguments(raw, tool) {
         const parsed = parseJsonLoose(raw);
         if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return { args: parsed };
 
-        // Единственный обязательный строковый параметр — терпимо принимаем
-        // «голое» значение вместо объекта.
+        // Single required string parameter — tolerantly accept
+        // a "bare" value instead of an object.
         const required = Array.isArray(tool.parameters?.required) ? tool.parameters.required : [];
         if (required.length === 1) {
             const schema = tool.parameters?.properties?.[required[0]];
@@ -110,10 +110,10 @@ function readArguments(raw, tool) {
                 return { args: { [required[0]]: raw } };
             }
         }
-        return { error: `аргументы функции "${tool.name}" не являются JSON-объектом` };
+        return { error: `arguments of function "${tool.name}" are not a JSON object` };
     }
 
-    return { error: `аргументы функции "${tool.name}" имеют неподдерживаемый тип` };
+    return { error: `arguments of function "${tool.name}" have an unsupported type` };
 }
 
 /**
@@ -121,7 +121,7 @@ function readArguments(raw, tool) {
  */
 
 /**
- * Проверяет сырые вызовы и приводит их к формату OpenAI.
+ * Validates raw calls and normalizes them to the OpenAI format.
  * @param {Array<{id: string|null, name: string, arguments: unknown}>} rawCalls
  * @param {import('./registry.js').ToolRegistry} registry
  * @returns {{calls: OpenAIToolCall[], problems: Array<{name: string, reason: string}>}}
@@ -135,7 +135,7 @@ export function validateToolCalls(rawCalls, registry) {
         if (!tool) {
             problems.push({
                 name: raw.name,
-                reason: `Функция "${raw.name}" не объявлена клиентом.`
+                reason: `Function "${raw.name}" is not declared by the client.`
             });
             continue;
         }
@@ -154,7 +154,7 @@ export function validateToolCalls(rawCalls, registry) {
         if (missing.length > 0) {
             problems.push({
                 name: tool.name,
-                reason: `в вызове "${tool.name}" отсутствуют обязательные аргументы: ${missing.join(', ')}.`
+                reason: `call "${tool.name}" is missing required arguments: ${missing.join(', ')}.`
             });
             continue;
         }

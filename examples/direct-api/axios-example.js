@@ -1,53 +1,53 @@
-// Пример прямого запроса к API прокси Qwen с использованием axios
-// Установка: npm install axios
-// Для запуска примера: node axios-example.js
+// Example of a direct request to the Qwen proxy API using axios
+// Install: npm install axios
+// To run: node axios-example.js
 
 import axios from 'axios';
 
 async function axiosExample() {
     try {
-        console.log('Отправка запроса через axios к API Qwen...\n');
-        
-        // Пример с форматом messages, совместимым с OpenAI
+        console.log('Sending a request via axios to the Qwen API...\n');
+
+        // Example with OpenAI-compatible messages format
         const response = await axios.post('http://localhost:3264/api/chat', {
             messages: [
-                { role: 'system', content: 'Ты эксперт по программированию на JavaScript.' },
-                { role: 'user', content: 'Объясни, как работают асинхронные функции в JavaScript' }
+                { role: 'system', content: 'You are a JavaScript programming expert.' },
+                { role: 'user', content: 'Explain how asynchronous functions work in JavaScript' }
             ],
             model: 'qwen-max-latest'
         });
-        
-        console.log('Ответ от API:\n');
+
+        console.log('Response from API:\n');
         console.log(response.data.choices[0].message.content);
-        console.log('\nЗапрос успешно выполнен.');
-        
-        // Вывод дополнительной информации
-        console.log('\nИнформация о запросе:');
-        console.log(`ID чата: ${response.data.chatId}`);
-        console.log(`Модель: ${response.data.model}`);
-        
-        // Сохраняем ID чата для следующего примера
+        console.log('\nRequest completed successfully.');
+
+        // Print additional information
+        console.log('\nRequest info:');
+        console.log(`Chat ID: ${response.data.chatId}`);
+        console.log(`Model: ${response.data.model}`);
+
+        // Save the chat ID for the next example
         const chatId = response.data.chatId;
-        
-        // Продолжаем диалог в том же чате
-        console.log('\n\nОтправка второго сообщения в тот же чат...\n');
-        
+
+        // Continue the conversation in the same chat
+        console.log('\n\nSending a second message to the same chat...\n');
+
         const followUpResponse = await axios.post('http://localhost:3264/api/chat', {
-            message: 'Приведи пример использования async/await',
+            message: 'Give an example of using async/await',
             model: 'qwen-max-latest',
             chatId: chatId
         });
-        
-        console.log('Ответ на второе сообщение:\n');
+
+        console.log('Response to the second message:\n');
         console.log(followUpResponse.data.choices[0].message.content);
-        
+
     } catch (error) {
-        console.error('Ошибка при выполнении запроса:', error);
+        console.error('Error during request:', error);
         if (error.response) {
-            console.error('Детали ошибки:', error.response.data);
+            console.error('Error details:', error.response.data);
         }
     }
 }
 
-// Запуск
-axiosExample(); 
+// Run
+axiosExample();

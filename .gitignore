@@ -19,6 +19,7 @@ session/
 # Логи
 logs
 *.log
+probe_out.txt
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

@@ -1,19 +1,19 @@
-// Реестр инструментов запроса: нормализация того, что прислал клиент, и
-// разрешение имени, которое вернула модель.
+// Request tool registry: normalization of what client sent, and
+// resolution of name returned by model.
 //
-// Агенты присылают инструменты в разных формах: OpenAI `tools`, устаревшие
-// `functions`, а MCP-клиенты — с префиксом сервера (`mcp__github__create_pr`,
-// `github.create_pr`, `github/create_pr`). Модель регулярно отвечает коротким
-// именем без префикса, поэтому одного точного сравнения недостаточно.
+// Agents send tools in different forms: OpenAI `tools`, legacy
+// `functions`, and MCP clients — with server prefix (`mcp__github__create_pr`,
+// `github.create_pr`, `github/create_pr`). Model regularly responds with short
+// name without prefix, so single exact comparison is not enough.
 
-/** Разделители пространств имён, используемые MCP-клиентами. */
+/** Namespace separators used by MCP clients. */
 const NAMESPACE_SEPARATORS = ['__', '::', '/', '.', ':'];
 
 function normalizeKey(name) {
     return String(name).toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
-/** Короткое имя инструмента без префикса сервера. */
+/** Short tool name without server prefix. */
 export function stripNamespace(name) {
     let result = String(name);
     for (const separator of NAMESPACE_SEPARATORS) {
@@ -52,7 +52,7 @@ function toToolDefinition(entry) {
 }
 
 /**
- * Реестр инструментов одного запроса.
+ * Tool registry for one request.
  * @typedef {{name: string, description: string, parameters: object, strict: boolean}} ToolDefinition
  */
 export class ToolRegistry {
@@ -71,8 +71,8 @@ export class ToolRegistry {
             if (!this.byNormalized.has(normalized)) this.byNormalized.set(normalized, tool);
 
             const short = normalizeKey(stripNamespace(tool.name));
-            // Короткое имя регистрируем только если оно однозначно: два MCP-сервера
-            // вполне могут отдать одинаковый `search`, и угадывать тут нельзя.
+            // A short name is registered only if it is unambiguous: two MCP servers
+            // may well return the same `search`, and guessing here is not acceptable.
             if (this.byShortName.has(short)) this.byShortName.set(short, null);
             else this.byShortName.set(short, tool);
         }
@@ -92,7 +92,7 @@ export class ToolRegistry {
     }
 
     /**
-     * Находит инструмент по имени, которое вернула модель.
+     * Finds a tool by the name returned by the model.
      * @param {string} rawName
      * @returns {ToolDefinition | null}
      */
@@ -106,7 +106,7 @@ export class ToolRegistry {
         const normalized = this.byNormalized.get(normalizeKey(name));
         if (normalized) return normalized;
 
-        // Модель ответила коротким именем, клиент ждёт полное (или наоборот).
+        // The model responded with a short name, while the client expects the full one (or vice versa).
         const short = this.byShortName.get(normalizeKey(stripNamespace(name)));
         if (short) return short;
 
@@ -119,9 +119,9 @@ export class ToolRegistry {
 }
 
 /**
- * Собирает реестр из полей запроса OpenAI.
- * @param {unknown} tools — поле `tools`
- * @param {unknown} functions — устаревшее поле `functions`
+ * Builds a registry from the fields of an OpenAI request.
+ * @param {unknown} tools — the `tools` field
+ * @param {unknown} functions — the deprecated `functions` field
  * @returns {ToolRegistry}
  */
 export function buildToolRegistry(tools, functions) {
@@ -133,8 +133,8 @@ export function buildToolRegistry(tools, functions) {
     const seen = new Set();
 
     for (const entry of source) {
-        // Не-функциональные инструменты (web_search, code_interpreter и т.п.)
-        // прокси выполнить не может — молча пропускаем, чтобы не сбивать модель.
+        // Non-function tools (web_search, code_interpreter, etc.)
+        // cannot be executed by the proxy — silently skip them to avoid confusing the model.
         if (entry && typeof entry === 'object' && entry.type && entry.type !== 'function' && !entry.function) {
             continue;
         }
@@ -150,7 +150,7 @@ export function buildToolRegistry(tools, functions) {
 }
 
 /**
- * Нормализует поле `tool_choice` запроса.
+ * Normalizes the request's `tool_choice` field.
  * @param {unknown} toolChoice
  * @returns {{mode: 'auto'|'none'|'required', name: string|null}}
  */

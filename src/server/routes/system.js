@@ -1,4 +1,4 @@
-// Служебные эндпоинты: здоровье, статус аккаунтов, модели, прокси скачивания.
+// Service endpoints: health, account status, models, download proxy.
 
 import express from 'express';
 
@@ -31,7 +31,7 @@ router.get('/health', (req, res, next) => {
 router.get('/models', (req, res, next) => {
     try {
         const models = listModelsOpenAI();
-        logInfo(`Возвращено моделей: ${models.data.length}`);
+        logInfo(`Models returned: ${models.data.length}`);
         res.json(models);
     } catch (error) {
         next(error);
@@ -40,7 +40,7 @@ router.get('/models', (req, res, next) => {
 
 router.get('/status', async (req, res, next) => {
     try {
-        logInfo('Запрос статуса авторизации');
+        logInfo('Authentication status request');
         const context = getBrowserContext();
 
         const accounts = await Promise.all(listAccounts().map(async account => {
@@ -73,8 +73,8 @@ router.get('/status', async (req, res, next) => {
         }));
 
         if (!context) {
-            logWarn('Браузер не инициализирован');
-            return res.json({ authenticated: false, message: 'Браузер не инициализирован', accounts });
+            logWarn('Browser not initialized');
+            return res.json({ authenticated: false, message: 'Browser not initialized', accounts });
         }
 
         if (getAuthenticationStatus()) return res.json({ authenticated: true, accounts });
@@ -83,7 +83,7 @@ router.get('/status', async (req, res, next) => {
         const authenticated = getAuthenticationStatus();
         return res.json({
             authenticated,
-            message: authenticated ? 'Авторизация активна' : 'Требуется авторизация',
+            message: authenticated ? 'Authentication active' : 'Authentication required',
             accounts
         });
     } catch (error) {
@@ -91,9 +91,9 @@ router.get('/status', async (req, res, next) => {
     }
 });
 
-// ─── Прокси скачивания медиа ────────────────────────────────────────────────
-// Фронтенд не может забрать файл с CDN Qwen напрямую из-за CORS.
-// Разрешены только https и домены Qwen/Aliyun; каждый редирект проверяется заново.
+// ─── Media download proxy ───────────────────────────────────────────────────
+// Frontend cannot fetch a file from Qwen CDN directly because of CORS.
+// Only https and Qwen/Aliyun domains are allowed; each redirect is revalidated.
 
 const ALLOWED_DOWNLOAD_HOSTS = ['qwenlm.ai', 'aliyuncs.com', 'alicdn.com', 'aliyun.com'];
 const MAX_REDIRECTS = 3;
@@ -109,7 +109,7 @@ function validateDownloadUrl(raw) {
     if (url.protocol !== 'https:') return null;
 
     const host = url.hostname.toLowerCase();
-    // IP-литералы и localhost отсекаем — это классический вектор SSRF.
+    // Reject IP literals and localhost — this is a classic SSRF vector.
     if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host) || host.includes(':') || host === 'localhost') return null;
     if (!ALLOWED_DOWNLOAD_HOSTS.some(domain => host === domain || host.endsWith(`.${domain}`))) return null;
 
@@ -122,12 +122,12 @@ router.get('/download', async (req, res) => {
 
     try {
         if (!req.query.url) {
-            return res.status(400).json({ error: 'Параметр url обязателен' });
+            return res.status(400).json({ error: 'url parameter is required' });
         }
 
         let url = validateDownloadUrl(req.query.url);
         if (!url) {
-            return res.status(403).json({ error: 'URL не разрешён (только https и домены Qwen/Aliyun CDN)' });
+            return res.status(403).json({ error: 'URL not allowed (https and Qwen/Aliyun CDN domains only)' });
         }
 
         let upstream;
@@ -138,17 +138,17 @@ router.get('/download', async (req, res) => {
 
             const location = upstream.headers.get('location');
             if (!location || ++hops > MAX_REDIRECTS) {
-                return res.status(502).json({ error: 'Недопустимая цепочка редиректов' });
+                return res.status(502).json({ error: 'Invalid redirect chain' });
             }
 
             let next = null;
             try { next = validateDownloadUrl(new URL(location, url).toString()); } catch { next = null; }
-            if (!next) return res.status(403).json({ error: 'Редирект на недопустимый адрес' });
+            if (!next) return res.status(403).json({ error: 'Redirect to disallowed address' });
             url = next;
         }
 
         if (!upstream.ok || !upstream.body) {
-            return res.status(502).json({ error: `Источник вернул ${upstream.status}` });
+            return res.status(502).json({ error: `Source returned ${upstream.status}` });
         }
 
         const name = String(req.query.name || url.pathname.split('/').pop() || 'download')
@@ -174,8 +174,8 @@ router.get('/download', async (req, res) => {
 
         return res.end();
     } catch (error) {
-        logError('Ошибка проксирования скачивания', error);
-        if (!res.headersSent) return res.status(500).json({ error: 'Внутренняя ошибка сервера' });
+        logError('Download proxy error', error);
+        if (!res.headersSent) return res.status(500).json({ error: 'Internal server error' });
         try { return res.end(); } catch { return undefined; }
     } finally {
         clearTimeout(timer);

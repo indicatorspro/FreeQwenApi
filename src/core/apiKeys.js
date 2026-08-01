@@ -1,6 +1,6 @@
-// Ключи доступа к самому прокси (не к Qwen).
-// Источники: переменная API_KEYS и файл src/Authorization.txt.
-// Пустой список означает, что авторизация клиентов отключена.
+// Access keys for the proxy itself (not for Qwen).
+// Sources: the API_KEYS variable and the src/Authorization.txt file.
+// An empty list means client authentication is disabled.
 
 import fs from 'fs';
 
@@ -8,18 +8,18 @@ import { config } from '../config/index.js';
 import { logError, logInfo } from '../shared/logger.js';
 import { API_KEYS_FILE } from '../shared/paths.js';
 
-const FILE_TEMPLATE = `# Ключи доступа к прокси FreeQwenApi
+const FILE_TEMPLATE = `# Access keys for the FreeQwenApi proxy
 # ------------------------------------------------
-# Один ключ — одна строка.
+# One key — one line.
 #
-# Пустой файл = авторизация выключена: прокси перестанет
-# проверять заголовок Authorization.
+# Empty file = authentication disabled: the proxy will stop
+# checking the Authorization header.
 #
-# Несколько пользователей — несколько строк:
+# Multiple users — multiple lines:
 #   d35ab3e1-a6f9-4d...
 #   f2b1cd9c-1b2e-4a...
 #
-# Пустые строки и строки, начинающиеся с «#», игнорируются.
+# Empty lines and lines starting with “#” are ignored.
 `;
 
 let cache = null;
@@ -29,9 +29,9 @@ function readKeysFile() {
         if (!fs.existsSync(API_KEYS_FILE)) {
             try {
                 fs.writeFileSync(API_KEYS_FILE, FILE_TEMPLATE, { encoding: 'utf8', flag: 'wx' });
-                logInfo(`Создан шаблон файла ключей: ${API_KEYS_FILE}`);
+                logInfo(`Created keys file template: ${API_KEYS_FILE}`);
             } catch (error) {
-                logError('Не удалось создать Authorization.txt', error);
+                logError('Failed to create Authorization.txt', error);
             }
             return [];
         }
@@ -41,7 +41,7 @@ function readKeysFile() {
             .map(line => line.trim())
             .filter(line => line && !line.startsWith('#'));
     } catch (error) {
-        logError('Ошибка чтения файла ключей', error);
+        logError('Error reading keys file', error);
         return [];
     }
 }

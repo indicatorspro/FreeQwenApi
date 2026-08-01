@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>FreeQwenApi — Дашборд</title>
+<title>FreeQwenApi — Dashboard</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2358a6ff' stroke-width='2' stroke-linejoin='round'%3E%3Cpath d='M12 2 4 6.5v9L12 22l8-6.5v-9L12 2Z'/%3E%3Cpath d='m12 7-4 2.3v4.4L12 16l4-2.3V9.3L12 7Z'/%3E%3C/svg%3E">
 <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" integrity="sha384-/TQbtLCAerC3jgaim+N78RZSDYV7ryeoBCVqTuzRrFec2akfBkHS7ACQ3PQhvMVi" crossorigin="anonymous" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.7/dist/purify.min.js" integrity="sha384-XQqX/4yiUGu+oyr87jvWzRuqBUK/adrY0DunhL+tID9m/9dwSpV8h9Fk/Sg6ifVQ" crossorigin="anonymous" defer></script>
@@ -91,7 +91,7 @@
   .chip{font-family:var(--mono);font-size:var(--fs-xs);background:var(--card2);border:1px solid var(--border);border-radius:6px;padding:7px 10px;cursor:pointer;transition:.12s;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted)}
   .chip:hover{border-color:var(--accent);color:var(--accent);background:var(--elev)}
 
-  /* accounts — прямые полосы статуса */
+  /* accounts — flat status bars */
   .accbar{display:flex;align-items:center;gap:var(--s2);margin-bottom:var(--s3)}
   .acc{display:flex;align-items:center;gap:var(--s3);padding:10px 12px;background:var(--card2);
     border:1px solid var(--border);border-left:3px solid var(--faint);border-radius:0 var(--r) var(--r) 0;margin-bottom:6px;flex-wrap:wrap}
@@ -119,7 +119,7 @@
   .bubble .role{font-size:10px;text-transform:uppercase;letter-spacing:.06em;opacity:.65;margin-bottom:4px;font-weight:700}
   .bubble.streaming::after{content:"▍";animation:blink 1s steps(2) infinite;color:var(--accent)}
   @keyframes blink{50%{opacity:0}}
-  /* markdown внутри ответа */
+  /* markdown inside a response */
   .md>*:first-child{margin-top:0}.md>*:last-child{margin-bottom:0}
   .md p{margin:.5em 0}.md ul,.md ol{margin:.5em 0;padding-left:1.4em}.md li{margin:.2em 0}
   .md code{font-family:var(--mono);font-size:.9em;background:var(--bg2);padding:1px 5px;border-radius:4px}
@@ -187,79 +187,79 @@
 <div class="wrap">
   <header>
     <h1><svg class="ic logo"><use href="#i-logo"/></svg> FreeQwenApi</h1>
-    <span class="status-pill"><span class="dot" id="statusDot"></span><span id="statusText" role="status" aria-live="polite">проверка…</span></span>
+    <span class="status-pill"><span class="dot" id="statusDot"></span><span id="statusText" role="status" aria-live="polite">checking…</span></span>
   </header>
 
-  <nav class="tabs" role="tablist" aria-label="Разделы">
-    <button class="tab" role="tab" aria-selected="true" aria-controls="tab-chat" id="t-chat" data-tab="chat"><svg class="ic"><use href="#i-chat"/></svg>Чат</button>
-    <button class="tab" role="tab" aria-selected="false" aria-controls="tab-images" id="t-images" data-tab="images" tabindex="-1"><svg class="ic"><use href="#i-image"/></svg>Картинки</button>
-    <button class="tab" role="tab" aria-selected="false" aria-controls="tab-video" id="t-video" data-tab="video" tabindex="-1"><svg class="ic"><use href="#i-video"/></svg>Видео</button>
-    <button class="tab" role="tab" aria-selected="false" aria-controls="tab-overview" id="t-overview" data-tab="overview" tabindex="-1"><svg class="ic"><use href="#i-overview"/></svg>Обзор</button>
+  <nav class="tabs" role="tablist" aria-label="Sections">
+    <button class="tab" role="tab" aria-selected="true" aria-controls="tab-chat" id="t-chat" data-tab="chat"><svg class="ic"><use href="#i-chat"/></svg>Chat</button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="tab-images" id="t-images" data-tab="images" tabindex="-1"><svg class="ic"><use href="#i-image"/></svg>Images</button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="tab-video" id="t-video" data-tab="video" tabindex="-1"><svg class="ic"><use href="#i-video"/></svg>Video</button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="tab-overview" id="t-overview" data-tab="overview" tabindex="-1"><svg class="ic"><use href="#i-overview"/></svg>Overview</button>
   </nav>
 
-  <!-- ЧАТ -->
+  <!-- CHAT -->
   <section id="tab-chat" class="panel active" role="tabpanel" aria-labelledby="t-chat">
     <div class="card full chatbox">
-      <h2><svg class="ic"><use href="#i-chat"/></svg>Плейграунд чата <span class="spacer"></span>
-        <select id="chatModel" aria-label="Модель чата"></select>
-        <button class="sm" id="clearChat"><svg class="ic"><use href="#i-trash"/></svg>очистить</button>
+      <h2><svg class="ic"><use href="#i-chat"/></svg>Chat playground <span class="spacer"></span>
+        <select id="chatModel" aria-label="Chat model"></select>
+        <button class="sm" id="clearChat"><svg class="ic"><use href="#i-trash"/></svg>clear</button>
       </h2>
-      <div class="msgs" id="msgs" role="log" aria-live="polite" aria-label="История чата"></div>
+      <div class="msgs" id="msgs" role="log" aria-live="polite" aria-label="Chat history"></div>
       <div class="attachments" id="attachments"></div>
       <div class="chat-input">
         <input type="file" id="fileInput" multiple accept="image/*,.pdf,.txt,.md,.doc,.docx" style="display:none">
-        <button class="sm" id="attachBtn" title="Прикрепить файлы" aria-label="Прикрепить файлы"><svg class="ic"><use href="#i-clip"/></svg></button>
-        <textarea id="chatInput" aria-label="Сообщение" placeholder="Сообщение… (Enter — отправить, Shift+Enter — перенос)"></textarea>
-        <button class="primary" id="sendChat"><svg class="ic"><use href="#i-send"/></svg>Отправить</button>
+        <button class="sm" id="attachBtn" title="Attach files" aria-label="Attach files"><svg class="ic"><use href="#i-clip"/></svg></button>
+        <textarea id="chatInput" aria-label="Message" placeholder="Message… (Enter — send, Shift+Enter — newline)"></textarea>
+        <button class="primary" id="sendChat"><svg class="ic"><use href="#i-send"/></svg>Send</button>
       </div>
     </div>
   </section>
 
-  <!-- КАРТИНКИ -->
+  <!-- IMAGES -->
   <section id="tab-images" class="panel" role="tabpanel" aria-labelledby="t-images">
     <div class="card full">
-      <h2><svg class="ic"><use href="#i-image"/></svg>Генерация картинок</h2>
+      <h2><svg class="ic"><use href="#i-image"/></svg>Image generation</h2>
       <div class="media-controls">
-        <select id="imgModel" aria-label="Модель"></select>
-        <select id="imgAspect" aria-label="Соотношение сторон"><option>16:9</option><option>1:1</option><option>9:16</option><option>4:3</option></select>
-        <button class="primary" id="imgBtn"><svg class="ic"><use href="#i-image"/></svg>Сгенерировать</button>
+        <select id="imgModel" aria-label="Model"></select>
+        <select id="imgAspect" aria-label="Aspect ratio"><option>16:9</option><option>1:1</option><option>9:16</option><option>4:3</option></select>
+        <button class="primary" id="imgBtn"><svg class="ic"><use href="#i-image"/></svg>Generate</button>
       </div>
-      <textarea id="imgPrompt" aria-label="Промпт изображения" placeholder="Опишите изображение… (Ctrl+Enter — запустить)" style="min-height:70px"></textarea>
-      <div class="media-out" id="imgOut" style="margin-top:var(--s3)"><div class="empty"><svg class="ic"><use href="#i-image"/></svg>Сгенерированные картинки появятся здесь.</div></div>
+      <textarea id="imgPrompt" aria-label="Image prompt" placeholder="Describe the image… (Ctrl+Enter — run)" style="min-height:70px"></textarea>
+      <div class="media-out" id="imgOut" style="margin-top:var(--s3)"><div class="empty"><svg class="ic"><use href="#i-image"/></svg>Generated images will appear here.</div></div>
       <div class="gallery" id="imgGallery"></div>
     </div>
   </section>
 
-  <!-- ВИДЕО -->
+  <!-- VIDEO -->
   <section id="tab-video" class="panel" role="tabpanel" aria-labelledby="t-video">
     <div class="card full">
-      <h2><svg class="ic"><use href="#i-video"/></svg>Генерация видео</h2>
+      <h2><svg class="ic"><use href="#i-video"/></svg>Video generation</h2>
       <div class="media-controls">
-        <select id="vidAspect" aria-label="Соотношение сторон"><option>16:9</option><option>1:1</option><option>9:16</option></select>
-        <button class="primary" id="vidBtn"><svg class="ic"><use href="#i-video"/></svg>Сгенерировать</button>
-        <button class="sm" id="vidCancel" style="display:none">отмена</button>
+        <select id="vidAspect" aria-label="Aspect ratio"><option>16:9</option><option>1:1</option><option>9:16</option></select>
+        <button class="primary" id="vidBtn"><svg class="ic"><use href="#i-video"/></svg>Generate</button>
+        <button class="sm" id="vidCancel" style="display:none">cancel</button>
       </div>
-      <textarea id="vidPrompt" aria-label="Промпт видео" placeholder="Опишите видео… (Ctrl+Enter — запустить)" style="min-height:70px"></textarea>
+      <textarea id="vidPrompt" aria-label="Video prompt" placeholder="Describe the video… (Ctrl+Enter — run)" style="min-height:70px"></textarea>
       <div class="statusline" id="vidStatus" role="status" aria-live="polite" style="display:none"></div>
-      <div class="media-out" id="vidOut" style="margin-top:var(--s3)"><div class="empty"><svg class="ic"><use href="#i-video"/></svg>Видео генерируется дольше — запустите и дождитесь.</div></div>
+      <div class="media-out" id="vidOut" style="margin-top:var(--s3)"><div class="empty"><svg class="ic"><use href="#i-video"/></svg>Video takes longer to generate — start it and wait.</div></div>
     </div>
   </section>
 
-  <!-- ОБЗОР (+ аккаунты) -->
+  <!-- OVERVIEW (+ accounts) -->
   <section id="tab-overview" class="panel" role="tabpanel" aria-labelledby="t-overview">
     <div class="kpis">
-      <div class="kpi"><div class="num" id="kpiStatus">—</div><div class="lbl"><svg class="ic"><use href="#i-refresh"/></svg>статус</div></div>
-      <div class="kpi"><div class="num" id="kpiModels">—</div><div class="lbl"><svg class="ic"><use href="#i-overview"/></svg>моделей</div></div>
-      <div class="kpi"><div class="num" id="kpiAcc">—</div><div class="lbl"><svg class="ic"><use href="#i-accounts"/></svg>аккаунтов онлайн</div></div>
-      <div class="kpi"><div class="num" id="kpiDead">—</div><div class="lbl"><svg class="ic"><use href="#i-warn"/></svg>в лимите / мертвы</div></div>
+      <div class="kpi"><div class="num" id="kpiStatus">—</div><div class="lbl"><svg class="ic"><use href="#i-refresh"/></svg>status</div></div>
+      <div class="kpi"><div class="num" id="kpiModels">—</div><div class="lbl"><svg class="ic"><use href="#i-overview"/></svg>models</div></div>
+      <div class="kpi"><div class="num" id="kpiAcc">—</div><div class="lbl"><svg class="ic"><use href="#i-accounts"/></svg>accounts online</div></div>
+      <div class="kpi"><div class="num" id="kpiDead">—</div><div class="lbl"><svg class="ic"><use href="#i-warn"/></svg>limited / dead</div></div>
     </div>
     <div class="grid">
       <div class="card">
-        <h2><svg class="ic"><use href="#i-plug"/></svg>Как подключить</h2>
-        <div class="row"><label class="k">Base URL</label><div class="val" id="baseUrl">—</div><button class="sm" data-copy="baseUrl" aria-label="Копировать"><svg class="ic"><use href="#i-copy"/></svg></button></div>
-        <div class="row"><label class="k">Open WebUI</label><div class="val" id="baseUrlApi">—</div><button class="sm" data-copy="baseUrlApi" aria-label="Копировать"><svg class="ic"><use href="#i-copy"/></svg></button></div>
-        <div class="row"><label class="k">API Key</label><div class="val">любой непустой (<b>sk-qwen</b>)</div><button class="sm" data-copy-text="sk-qwen" aria-label="Копировать"><svg class="ic"><use href="#i-copy"/></svg></button></div>
-        <div class="row"><label class="k">Модель</label><div class="val" id="defModel">qwen3.7-max</div><button class="sm" data-copy="defModel" aria-label="Копировать"><svg class="ic"><use href="#i-copy"/></svg></button></div>
+        <h2><svg class="ic"><use href="#i-plug"/></svg>How to connect</h2>
+        <div class="row"><label class="k">Base URL</label><div class="val" id="baseUrl">—</div><button class="sm" data-copy="baseUrl" aria-label="Copy"><svg class="ic"><use href="#i-copy"/></svg></button></div>
+        <div class="row"><label class="k">Open WebUI</label><div class="val" id="baseUrlApi">—</div><button class="sm" data-copy="baseUrlApi" aria-label="Copy"><svg class="ic"><use href="#i-copy"/></svg></button></div>
+        <div class="row"><label class="k">API Key</label><div class="val">any non-empty value (<b>sk-qwen</b>)</div><button class="sm" data-copy-text="sk-qwen" aria-label="Copy"><svg class="ic"><use href="#i-copy"/></svg></button></div>
+        <div class="row"><label class="k">Model</label><div class="val" id="defModel">qwen3.7-max</div><button class="sm" data-copy="defModel" aria-label="Copy"><svg class="ic"><use href="#i-copy"/></svg></button></div>
         <div class="row" style="margin-top:var(--s3)">
           <button class="sm" id="copyCurl"><svg class="ic"><use href="#i-copy"/></svg>cURL</button>
           <button class="sm" id="copyPy"><svg class="ic"><use href="#i-copy"/></svg>Python</button>
@@ -267,23 +267,23 @@
         <div class="hint">OpenAI SDK — <code>/api/v1</code>, Open WebUI — <code>/api</code>.</div>
       </div>
       <div class="card">
-        <h2><svg class="ic"><use href="#i-overview"/></svg>Модели (<span id="modelCount">0</span>) <span class="spacer"></span><span class="hint" style="margin:0">клик копирует</span></h2>
-        <div class="models" id="modelList"><span class="hint">загрузка…</span></div>
+        <h2><svg class="ic"><use href="#i-overview"/></svg>Models (<span id="modelCount">0</span>) <span class="spacer"></span><span class="hint" style="margin:0">click to copy</span></h2>
+        <div class="models" id="modelList"><span class="hint">loading…</span></div>
       </div>
       <div class="card full">
-        <h2><svg class="ic"><use href="#i-accounts"/></svg>Аккаунты Qwen <span class="spacer"></span>
-          <button class="sm" id="checkAllBtn"><svg class="ic"><use href="#i-check"/></svg>проверить все</button></h2>
-        <div id="accList"><span class="hint">загрузка…</span></div>
+        <h2><svg class="ic"><use href="#i-accounts"/></svg>Qwen accounts <span class="spacer"></span>
+          <button class="sm" id="checkAllBtn"><svg class="ic"><use href="#i-check"/></svg>check all</button></h2>
+        <div id="accList"><span class="hint">loading…</span></div>
         <div class="row" style="margin-top:var(--s4)">
-          <input type="text" id="newToken" aria-label="Новый токен Qwen" placeholder="Вставьте токен Qwen (eyJ…) и нажмите «Добавить»" autocomplete="off" spellcheck="false">
-          <button class="primary" id="addBtn">Добавить</button>
+          <input type="text" id="newToken" aria-label="New Qwen token" placeholder="Paste a Qwen token (eyJ…) and press Add" autocomplete="off" spellcheck="false">
+          <button class="primary" id="addBtn">Add</button>
         </div>
-        <div class="hint" id="addHint">Токен: <code>chat.qwen.ai</code> → F12 → Console → <code>copy(localStorage.token)</code> <button class="sm" id="copySnippet" style="margin-left:6px"><svg class="ic"><use href="#i-copy"/></svg>копировать команду</button></div>
+        <div class="hint" id="addHint">Token: <code>chat.qwen.ai</code> → F12 → Console → <code>copy(localStorage.token)</code> <button class="sm" id="copySnippet" style="margin-left:6px"><svg class="ic"><use href="#i-copy"/></svg>copy command</button></div>
       </div>
     </div>
   </section>
 
-  <footer>FreeQwenApi · дашборд</footer>
+  <footer>FreeQwenApi · dashboard</footer>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
@@ -295,8 +295,8 @@ const icon = id => `<svg class="ic"><use href="#${id}"/></svg>`;
 const isImg = f => /^image\//.test(f.type||'') || /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(f.name||'');
 function toast(m, kind){ const t=$('#toast'); t.innerHTML=(kind==='err'?icon('i-warn'):kind==='ok'?icon('i-check'):'')+'<span>'+esc(m)+'</span>'; t.className='toast show'+(kind?' '+kind:''); clearTimeout(toast._t); toast._t=setTimeout(()=>t.className='toast',1900); }
 async function copyText(t){
-  try{ if(navigator.clipboard && isSecureContext){ await navigator.clipboard.writeText(t); return toast('Скопировано','ok'); } throw 0; }
-  catch{ try{ const a=document.createElement('textarea'); a.value=t; a.style.position='fixed'; a.style.opacity='0'; document.body.appendChild(a); a.select(); document.execCommand('copy'); a.remove(); toast('Скопировано','ok'); }catch{ toast('Не удалось скопировать','err'); } }
+  try{ if(navigator.clipboard && isSecureContext){ await navigator.clipboard.writeText(t); return toast('Copied','ok'); } throw 0; }
+  catch{ try{ const a=document.createElement('textarea'); a.value=t; a.style.position='fixed'; a.style.opacity='0'; document.body.appendChild(a); a.select(); document.execCommand('copy'); a.remove(); toast('Copied','ok'); }catch{ toast('Failed to copy','err'); } }
 }
 function dlUrl(url, name){ return origin+'/api/download?url='+encodeURIComponent(url)+(name?('&name='+encodeURIComponent(name)):''); }
 function mdRender(text){ try{ if(window.marked&&window.DOMPurify){ const html=window.marked.parse(text,{breaks:true}); return window.DOMPurify.sanitize(html,{ADD_ATTR:['target']}); } }catch{} return null; }
@@ -305,7 +305,7 @@ const apiV1 = origin+'/api/v1';
 $('#baseUrl').textContent = apiV1;
 $('#baseUrlApi').textContent = origin + '/api';
 
-// ── Вкладки ──────────────────────────────────────────────────────────────
+// ── Tabs ──────────────────────────────────────────────────────────────
 const TABS=['chat','images','video','overview'];
 const inited={};
 function showTab(name){
@@ -336,112 +336,112 @@ document.addEventListener('click', e=>{
   if(b.dataset.copy) return copyText($('#'+b.dataset.copy).textContent.trim());
 });
 $('#copySnippet').onclick=()=>copyText('copy(localStorage.token)');
-$('#copyCurl').onclick=()=>copyText(`curl ${apiV1}/chat/completions \\\n  -H "Authorization: Bearer sk-qwen" \\\n  -H "Content-Type: application/json" \\\n  -d '{"model":"qwen3.7-max","messages":[{"role":"user","content":"Привет"}]}'`);
-$('#copyPy').onclick=()=>copyText(`from openai import OpenAI\nclient = OpenAI(base_url="${apiV1}", api_key="sk-qwen")\nr = client.chat.completions.create(model="qwen3.7-max",\n    messages=[{"role":"user","content":"Привет"}])\nprint(r.choices[0].message.content)`);
+$('#copyCurl').onclick=()=>copyText(`curl ${apiV1}/chat/completions \\\n  -H "Authorization: Bearer sk-qwen" \\\n  -H "Content-Type: application/json" \\\n  -d '{"model":"qwen3.7-max","messages":[{"role":"user","content":"Hello"}]}'`);
+$('#copyPy').onclick=()=>copyText(`from openai import OpenAI\nclient = OpenAI(base_url="${apiV1}", api_key="sk-qwen")\nr = client.chat.completions.create(model="qwen3.7-max",\n    messages=[{"role":"user","content":"Hello"}])\nprint(r.choices[0].message.content)`);
 
-// ── Статус + KPI ───────────────────────────────────────────────────────────
+// ── Status + KPI ───────────────────────────────────────────────────────────
 async function loadHealth(){
   try{
     const j=await (await fetch(origin+'/api/health')).json();
     const av=j.accounts?.available??0, tot=j.accounts?.total??0, dead=(j.accounts?.invalid||0)+(j.accounts?.waiting||0);
     $('#statusDot').className='dot on';
-    $('#statusText').textContent='онлайн · '+(j.models||0)+' моделей · '+av+'/'+tot+' акк.';
-    $('#kpiStatus').textContent='Онлайн'; $('#kpiStatus').className='num ok';
+    $('#statusText').textContent='online · '+(j.models||0)+' models · '+av+'/'+tot+' acc.';
+    $('#kpiStatus').textContent='Online'; $('#kpiStatus').className='num ok';
     $('#kpiModels').textContent=j.models||0;
     $('#kpiAcc').textContent=av+' / '+tot; $('#kpiAcc').className='num'+(av?' ok':' err');
     $('#kpiDead').textContent=dead; $('#kpiDead').className='num'+(dead?' warn':'');
-  }catch{ $('#statusDot').className='dot off'; $('#statusText').textContent='офлайн'; $('#kpiStatus').textContent='Офлайн'; $('#kpiStatus').className='num err'; }
+  }catch{ $('#statusDot').className='dot off'; $('#statusText').textContent='offline'; $('#kpiStatus').textContent='Offline'; $('#kpiStatus').className='num err'; }
 }
 
-// ── Модели ─────────────────────────────────────────────────────────────────
+// ── Models ─────────────────────────────────────────────────────────────────
 let modelCache=[];
 async function fetchModels(){ if(modelCache.length) return modelCache; try{ const j=await (await fetch(origin+'/api/models')).json(); modelCache=(j.data||[]).map(m=>m.id);}catch{} return modelCache; }
 async function loadModels(){
   const ids=await fetchModels();
   $('#modelCount').textContent=ids.length;
-  $('#modelList').innerHTML=ids.map(id=>`<span class="chip" data-model="${esc(id)}">${esc(id)}</span>`).join('')||'<span class="hint err-text">не удалось загрузить</span>';
+  $('#modelList').innerHTML=ids.map(id=>`<span class="chip" data-model="${esc(id)}">${esc(id)}</span>`).join('')||'<span class="hint err-text">failed to load</span>';
   if(ids.length && !ids.includes('qwen3.7-max')) $('#defModel').textContent=ids[0];
 }
 document.addEventListener('click', e=>{ const c=e.target.closest('.chip[data-model]'); if(c) copyText(c.dataset.model); });
 
-// ── Аккаунты ───────────────────────────────────────────────────────────────
-function fmtExp(ms){ if(!ms) return ''; const d=Math.round((ms-Date.now())/864e5); return 'до '+new Date(ms).toISOString().slice(0,10)+(d>=0?' ('+d+' дн)':' (истёк)'); }
-function fmtTime(iso){ try{ return new Date(iso).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}); }catch{ return ''; } }
-const stLabel=s=>({OK:'активен',WAIT:'лимит',INVALID:'невалиден',EXPIRED:'истёк',ERROR:'ошибка'})[s]||s;
+// ── Accounts ───────────────────────────────────────────────────────────────
+function fmtExp(ms){ if(!ms) return ''; const d=Math.round((ms-Date.now())/864e5); return 'until '+new Date(ms).toISOString().slice(0,10)+(d>=0?' ('+d+' days)':' (expired)'); }
+function fmtTime(iso){ try{ return new Date(iso).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}); }catch{ return ''; } }
+const stLabel=s=>({OK:'active',WAIT:'limited',INVALID:'invalid',EXPIRED:'expired',ERROR:'error'})[s]||s;
 async function loadAccounts(){
   const list=$('#accList');
   try{
     const j=await (await fetch(origin+'/api/accounts')).json();
-    if(!j.accounts||!j.accounts.length){ list.innerHTML='<div class="onboard">Пока нет аккаунтов. Откройте <b>chat.qwen.ai</b>, войдите, затем <b>F12 → Console</b> → <code>copy(localStorage.token)</code> и вставьте токен ниже.</div>'; return; }
+    if(!j.accounts||!j.accounts.length){ list.innerHTML='<div class="onboard">No accounts yet. Open <b>chat.qwen.ai</b>, log in, then <b>F12 → Console</b> → <code>copy(localStorage.token)</code> and paste the token below.</div>'; return; }
     list.innerHTML=j.accounts.map(a=>{
-      const meta=a.resetAt?('лимит до '+fmtTime(a.resetAt)):fmtExp(a.exp);
+      const meta=a.resetAt?('limit until '+fmtTime(a.resetAt)):fmtExp(a.exp);
       return `<div class="acc ${a.status}" data-id="${esc(a.id)}">
         <span class="id">${esc(a.id)}</span><span class="badge ${a.status}">${stLabel(a.status)}</span>${a.label?`<span class="acclabel">${esc(a.label)}</span>`:''}
         <span class="meta">${esc(a.preview||'')}</span><span class="meta">${esc(meta)}</span><span class="spacer"></span>
-        <button class="sm" data-check="${esc(a.id)}" aria-label="Проверить ${esc(a.id)}">${icon('i-check')}проверить</button>
-        <button class="sm" data-editlabel="${esc(a.id)}" aria-label="Ярлык ${esc(a.id)}">ярлык</button>
-        <button class="sm" data-relogin="${esc(a.id)}" aria-label="Обновить токен ${esc(a.id)}">${icon('i-key')}токен</button>
-        <button class="sm danger" data-del="${esc(a.id)}" aria-label="Удалить ${esc(a.id)}">${icon('i-trash')}</button>
+        <button class="sm" data-check="${esc(a.id)}" aria-label="Check ${esc(a.id)}">${icon('i-check')}check</button>
+        <button class="sm" data-editlabel="${esc(a.id)}" aria-label="Label ${esc(a.id)}">label</button>
+        <button class="sm" data-relogin="${esc(a.id)}" aria-label="Update token ${esc(a.id)}">${icon('i-key')}token</button>
+        <button class="sm danger" data-del="${esc(a.id)}" aria-label="Delete ${esc(a.id)}">${icon('i-trash')}</button>
       </div>
       <div class="relogin-box" data-box="${esc(a.id)}" style="display:none">
-        <input type="text" aria-label="Новый токен для ${esc(a.id)}" placeholder="Новый токен Qwen (eyJ…)" data-newtok="${esc(a.id)}" autocomplete="off" spellcheck="false">
-        <button class="primary sm" data-save="${esc(a.id)}">Сохранить</button><button class="sm" data-cancel="${esc(a.id)}">Отмена</button>
+        <input type="text" aria-label="New token for ${esc(a.id)}" placeholder="New Qwen token (eyJ…)" data-newtok="${esc(a.id)}" autocomplete="off" spellcheck="false">
+        <button class="primary sm" data-save="${esc(a.id)}">Save</button><button class="sm" data-cancel="${esc(a.id)}">Cancel</button>
       </div>
       <div class="relogin-box" data-labelbox="${esc(a.id)}" style="display:none">
-        <input type="text" maxlength="60" aria-label="Ярлык для ${esc(a.id)}" placeholder="Ярлык — для различения аккаунтов" data-newlabel="${esc(a.id)}" value="${esc(a.label||'')}" autocomplete="off">
-        <button class="primary sm" data-savelabel="${esc(a.id)}">Сохранить</button><button class="sm" data-cancellabel="${esc(a.id)}">Отмена</button>
+        <input type="text" maxlength="60" aria-label="Label for ${esc(a.id)}" placeholder="Label — to distinguish accounts" data-newlabel="${esc(a.id)}" value="${esc(a.label||'')}" autocomplete="off">
+        <button class="primary sm" data-savelabel="${esc(a.id)}">Save</button><button class="sm" data-cancellabel="${esc(a.id)}">Cancel</button>
       </div>`;
     }).join('');
-  }catch{ list.innerHTML='<div class="hint err-text">Не удалось загрузить аккаунты</div>'; }
+  }catch{ list.innerHTML='<div class="hint err-text">Failed to load accounts</div>'; }
 }
 $('#checkAllBtn').onclick=async()=>{
   const b=$('#checkAllBtn'); b.disabled=true;
   try{
     const j=await (await fetch(origin+'/api/accounts')).json(); const ids=(j.accounts||[]).map(a=>a.id); let i=0;
-    for(const id of ids){ i++; b.innerHTML=icon('i-refresh')+'проверка '+i+'/'+ids.length;
+    for(const id of ids){ i++; b.innerHTML=icon('i-refresh')+'checking '+i+'/'+ids.length;
       try{ await fetch(origin+'/api/accounts/'+encodeURIComponent(id)+'/check',{method:'POST',headers:{'Content-Type':'application/json'}}); }catch{} }
-    await loadAccounts(); await loadHealth(); toast('Проверено: '+ids.length,'ok');
-  }catch{ toast('Ошибка проверки','err'); }
-  b.disabled=false; b.innerHTML=icon('i-check')+'проверить все';
+    await loadAccounts(); await loadHealth(); toast('Checked: '+ids.length,'ok');
+  }catch{ toast('Check error','err'); }
+  b.disabled=false; b.innerHTML=icon('i-check')+'check all';
 };
 $('#addBtn').onclick=async()=>{
-  const token=$('#newToken').value.trim(); if(!token) return toast('Вставьте токен','err');
-  if(!token.startsWith('eyJ')) return toast('Похоже, это не токен (eyJ…)','err');
+  const token=$('#newToken').value.trim(); if(!token) return toast('Paste a token','err');
+  if(!token.startsWith('eyJ')) return toast('This does not look like a token (eyJ…)','err');
   const btn=$('#addBtn'); btn.disabled=true;
   try{ const j=await (await fetch(origin+'/api/accounts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token})})).json();
-    if(j.ok){ toast('Добавлен '+j.id,'ok'); $('#newToken').value=''; loadAccounts(); loadHealth(); } else toast(j.error||'Ошибка','err'); }
-  catch{ toast('Сеть недоступна','err'); }
+    if(j.ok){ toast('Added '+j.id,'ok'); $('#newToken').value=''; loadAccounts(); loadHealth(); } else toast(j.error||'Error','err'); }
+  catch{ toast('Network unavailable','err'); }
   btn.disabled=false;
 };
 document.addEventListener('click', async e=>{
   const t=e.target.closest('button'); if(!t) return;
-  if(t.dataset.check){ const badge=t.closest('.acc').querySelector('.badge'); badge.className='badge checking'; badge.textContent='проверка'; t.disabled=true;
-    try{ await fetch(origin+'/api/accounts/'+encodeURIComponent(t.dataset.check)+'/check',{method:'POST',headers:{'Content-Type':'application/json'}}); await loadAccounts(); await loadHealth(); }catch{ toast('Ошибка','err'); loadAccounts(); } return; }
-  if(t.dataset.del){ if(!confirm('Удалить аккаунт '+t.dataset.del+'?')) return; t.disabled=true;
-    try{ await fetch(origin+'/api/accounts/'+encodeURIComponent(t.dataset.del),{method:'DELETE'}); toast('Удалён','ok'); }catch{ toast('Ошибка','err'); } loadAccounts(); loadHealth(); return; }
+  if(t.dataset.check){ const badge=t.closest('.acc').querySelector('.badge'); badge.className='badge checking'; badge.textContent='checking'; t.disabled=true;
+    try{ await fetch(origin+'/api/accounts/'+encodeURIComponent(t.dataset.check)+'/check',{method:'POST',headers:{'Content-Type':'application/json'}}); await loadAccounts(); await loadHealth(); }catch{ toast('Error','err'); loadAccounts(); } return; }
+  if(t.dataset.del){ if(!confirm('Delete account '+t.dataset.del+'?')) return; t.disabled=true;
+    try{ await fetch(origin+'/api/accounts/'+encodeURIComponent(t.dataset.del),{method:'DELETE'}); toast('Deleted','ok'); }catch{ toast('Error','err'); } loadAccounts(); loadHealth(); return; }
   if(t.dataset.relogin){ const b=document.querySelector('[data-box="'+CSS.escape(t.dataset.relogin)+'"]'); if(b){ b.style.display='flex'; b.querySelector('input')?.focus(); } return; }
   if(t.dataset.cancel){ const b=document.querySelector('[data-box="'+CSS.escape(t.dataset.cancel)+'"]'); if(b) b.style.display='none'; return; }
   if(t.dataset.save){ const id=t.dataset.save, inp=document.querySelector('[data-newtok="'+CSS.escape(id)+'"]'); const token=(inp?.value||'').trim();
-    if(!token) return toast('Вставьте токен','err'); t.disabled=true;
+    if(!token) return toast('Paste a token','err'); t.disabled=true;
     try{ const j=await (await fetch(origin+'/api/accounts/'+encodeURIComponent(id)+'/update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token})})).json();
-      if(j.ok){ toast('Токен обновлён: '+id,'ok'); loadAccounts(); loadHealth(); } else { toast(j.error||'Ошибка','err'); t.disabled=false; } }
-    catch{ toast('Сеть недоступна','err'); t.disabled=false; } return; }
+      if(j.ok){ toast('Token updated: '+id,'ok'); loadAccounts(); loadHealth(); } else { toast(j.error||'Error','err'); t.disabled=false; } }
+    catch{ toast('Network unavailable','err'); t.disabled=false; } return; }
   if(t.dataset.editlabel){ const b=document.querySelector('[data-labelbox="'+CSS.escape(t.dataset.editlabel)+'"]'); if(b){ b.style.display='flex'; const i=b.querySelector('input'); if(i){ i.focus(); i.select(); } } return; }
   if(t.dataset.cancellabel){ const b=document.querySelector('[data-labelbox="'+CSS.escape(t.dataset.cancellabel)+'"]'); if(b) b.style.display='none'; return; }
   if(t.dataset.savelabel){ const id=t.dataset.savelabel, inp=document.querySelector('[data-newlabel="'+CSS.escape(id)+'"]'); const label=(inp?.value||'').trim(); t.disabled=true;
     try{ const j=await (await fetch(origin+'/api/accounts/'+encodeURIComponent(id)+'/label',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label})})).json();
-      if(j.ok){ toast('Ярлык сохранён','ok'); loadAccounts(); } else { toast(j.error||'Ошибка','err'); t.disabled=false; } }
-    catch{ toast('Сеть недоступна','err'); t.disabled=false; } return; }
+      if(j.ok){ toast('Label saved','ok'); loadAccounts(); } else { toast(j.error||'Error','err'); t.disabled=false; } }
+    catch{ toast('Network unavailable','err'); t.disabled=false; } return; }
 });
 setInterval(()=>{ if($('#tab-overview').classList.contains('active') && inited.overview) loadAccounts(); }, 20000);
 
-// ── Чат (история + файлы + markdown, через /api/chat/completions) ────────────
+// ── Chat (history + files + markdown, via /api/chat/completions) ────────────
 let chatHistory=[], chatBusy=false, chatAbort=null, pendingFiles=[];
 async function loadChatModels(){ const ids=await fetchModels(); $('#chatModel').innerHTML=ids.map(id=>`<option ${id==='qwen3.7-max'?'selected':''}>${esc(id)}</option>`).join('')||'<option>qwen3.7-max</option>'; renderChat(); }
-function attHtml(a){ return isImg(a) ? `<img src="${esc(a.url)}" alt="${esc(a.name)}"><a href="${esc(dlUrl(a.url,a.name))}">скачать</a>` : `<a href="${esc(dlUrl(a.url,a.name))}">${esc(a.name)}</a>`; }
+function attHtml(a){ return isImg(a) ? `<img src="${esc(a.url)}" alt="${esc(a.name)}"><a href="${esc(dlUrl(a.url,a.name))}">download</a>` : `<a href="${esc(dlUrl(a.url,a.name))}">${esc(a.name)}</a>`; }
 function bubbleEl(m){
   const d=document.createElement('div'); d.className='bubble '+m.role+(m.err?' err':'');
-  d.innerHTML='<div class="role">'+(m.role==='user'?'Вы':'AI')+'</div>';
+  d.innerHTML='<div class="role">'+(m.role==='user'?'You':'AI')+'</div>';
   const c=document.createElement('div'); c.className='body';
   if(m.role==='assistant' && !m.err && m.done){ const html=mdRender(m.content); if(html){ c.className='body md'; c.innerHTML=html; } else { c.textContent=m.content; d.classList.add('plain'); } }
   else { c.textContent=m.content; if(m.role!=='user') d.classList.add('plain'); }
@@ -451,13 +451,13 @@ function bubbleEl(m){
 }
 function renderChat(){
   const box=$('#msgs');
-  if(!chatHistory.length){ box.innerHTML='<div class="empty">'+icon('i-chat')+'Начните диалог — ответ стримингом с markdown, контекст и файлы поддерживаются.</div>'; return; }
+  if(!chatHistory.length){ box.innerHTML='<div class="empty">'+icon('i-chat')+'Start a conversation — streaming response with markdown, context and files are supported.</div>'; return; }
   box.innerHTML=''; chatHistory.forEach(m=>box.appendChild(bubbleEl(m))); box.scrollTop=box.scrollHeight;
 }
 function atBottom(){ const b=$('#msgs'); return b.scrollHeight-b.scrollTop-b.clientHeight<60; }
-function setBusy(b){ chatBusy=b; const btn=$('#sendChat'); btn.innerHTML=b?'Стоп':icon('i-send')+'Отправить'; btn.classList.toggle('danger',b); }
+function setBusy(b){ chatBusy=b; const btn=$('#sendChat'); btn.innerHTML=b?'Stop':icon('i-send')+'Send'; btn.classList.toggle('danger',b); }
 
-// вложения
+// attachments
 function renderAtts(){
   $('#attachments').innerHTML=pendingFiles.map((f,i)=>`<span class="att${f.up?' up':''}">${f.up?'<span class="spinner" style="width:11px;height:11px"></span>':''}${esc(f.name)}<span class="x" data-rmatt="${i}">✕</span></span>`).join('');
 }
@@ -468,12 +468,12 @@ $('#fileInput').onchange=async e=>{
     try{ const fd=new FormData(); fd.append('file',file);
       const j=await (await fetch(origin+'/api/files/upload',{method:'POST',body:fd})).json();
       if(j.success&&j.file){ slot.url=j.file.url; slot.up=false; slot.type=j.file.type||slot.type; }
-      else { pendingFiles=pendingFiles.filter(x=>x!==slot); toast(j.error||'Ошибка загрузки '+file.name,'err'); }
-    }catch{ pendingFiles=pendingFiles.filter(x=>x!==slot); toast('Не удалось загрузить '+file.name,'err'); }
+      else { pendingFiles=pendingFiles.filter(x=>x!==slot); toast(j.error||'Upload error '+file.name,'err'); }
+    }catch{ pendingFiles=pendingFiles.filter(x=>x!==slot); toast('Failed to upload '+file.name,'err'); }
     renderAtts();
   }
   e.target.value='';
-  if(pendingFiles.length){ const m=$('#chatModel').value; if(!/vl|plus/i.test(m)) toast('Для файлов лучше qwen3.7-plus или qwen3-vl-plus','ok'); }
+  if(pendingFiles.length){ const m=$('#chatModel').value; if(!/vl|plus/i.test(m)) toast('For files, qwen3.7-plus or qwen3-vl-plus is better','ok'); }
 };
 $('#attachments').onclick=e=>{ const x=e.target.closest('[data-rmatt]'); if(x){ pendingFiles.splice(+x.dataset.rmatt,1); renderAtts(); } };
 
@@ -490,7 +490,7 @@ async function sendChat(){
   const node=bubbleEl(asst); node.classList.add('streaming','plain'); box.appendChild(node); box.scrollTop=box.scrollHeight;
   setBusy(true); chatAbort=new AbortController();
 
-  // собрать OpenAI messages: история (текст) + последнее user с вложениями
+  // build OpenAI messages: history (text) + latest user with attachments
   const msgs=chatHistory.slice(0,-1).map((m,idx,arr)=>{
     if(idx===arr.length-1 && m.role==='user' && userMsg.atts.length){
       const imgs=userMsg.atts.filter(isImg), docs=userMsg.atts.filter(a=>!isImg(a));
@@ -513,7 +513,7 @@ async function sendChat(){
       for(const line of lines){ const s=line.trim(); if(!s.startsWith('data:')) continue; const p=s.slice(5).trim(); if(p==='[DONE]'){ buf=''; break; }
         try{ const d=JSON.parse(p).choices?.[0]?.delta?.content; if(d){ asst.content+=d; node._c.textContent=asst.content; if(atBottom()) box.scrollTop=box.scrollHeight; } }catch{} }
     }
-    if(!asst.content){ chatHistory.pop(); node.remove(); toast('Пустой ответ','err'); }
+    if(!asst.content){ chatHistory.pop(); node.remove(); toast('Empty response','err'); }
     else { asst.done=true; const html=mdRender(asst.content); if(html){ node.classList.remove('plain'); node._c.className='body md'; node._c.innerHTML=html; } if(atBottom()) box.scrollTop=box.scrollHeight; }
   }catch(e){
     if(e.name==='AbortError'){ if(!asst.content){ chatHistory.pop(); node.remove(); } else asst.done=true; }
@@ -524,62 +524,62 @@ $('#sendChat').onclick=sendChat;
 $('#chatInput').addEventListener('keydown', e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); sendChat(); } });
 $('#clearChat').onclick=()=>{ if(chatBusy) chatAbort?.abort(); chatHistory=[]; pendingFiles=[]; renderAtts(); renderChat(); };
 
-// ── Картинки ───────────────────────────────────────────────────────────────
+// ── Images ───────────────────────────────────────────────────────────────
 let imgSeq=0;
 async function loadImageModels(){ let ids=['qwen3-vl-plus']; try{ const j=await (await fetch(origin+'/api/images/models')).json(); const g=(j.data||[]).map(m=>m.id); if(g.length) ids=g; }catch{} $('#imgModel').innerHTML=ids.map(id=>`<option ${id==='qwen3-vl-plus'?'selected':''}>${esc(id)}</option>`).join(''); }
 async function genImage(){
-  const prompt=$('#imgPrompt').value.trim(); if(!prompt) return toast('Введите промпт','err');
-  const seq=++imgSeq; const out=$('#imgOut'); out.innerHTML='<div class="statusline"><span class="spinner"></span> Генерация изображения…</div>'; $('#imgBtn').disabled=true;
+  const prompt=$('#imgPrompt').value.trim(); if(!prompt) return toast('Enter a prompt','err');
+  const seq=++imgSeq; const out=$('#imgOut'); out.innerHTML='<div class="statusline"><span class="spinner"></span> Generating image…</div>'; $('#imgBtn').disabled=true;
   try{
     const j=await (await fetch(origin+'/api/images/generations',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({prompt,model:$('#imgModel').value,aspect_ratio:$('#imgAspect').value})})).json();
     if(seq!==imgSeq) return;
-    const url=j?.data?.[0]?.url; if(!url) throw new Error(j.message||j.error||'URL не получен');
-    out.innerHTML=`<img src="${esc(url)}" alt="${esc(prompt)}" loading="lazy"><div class="media-actions"><a href="${esc(url)}" target="_blank" rel="noopener">открыть</a><a href="${esc(dlUrl(url,'qwen-image.png'))}">скачать</a></div>`;
+    const url=j?.data?.[0]?.url; if(!url) throw new Error(j.message||j.error||'No URL received');
+    out.innerHTML=`<img src="${esc(url)}" alt="${esc(prompt)}" loading="lazy"><div class="media-actions"><a href="${esc(url)}" target="_blank" rel="noopener">open</a><a href="${esc(dlUrl(url,'qwen-image.png'))}">download</a></div>`;
     const t=document.createElement('div'); t.className='gthumb';
     t.innerHTML=`<a href="${esc(url)}" target="_blank" rel="noopener"><img src="${esc(url)}" alt="${esc(prompt)}" loading="lazy" title="${esc(prompt)}"></a><a class="dl" href="${esc(dlUrl(url,'qwen-image.png'))}">↓</a>`;
     $('#imgGallery').prepend(t);
-  }catch(e){ if(seq===imgSeq){ out.innerHTML='<span class="err-text">'+icon('i-warn')+' '+esc(e.message)+'</span> <button class="sm" onclick="genImage()">повторить</button>'; } }
+  }catch(e){ if(seq===imgSeq){ out.innerHTML='<span class="err-text">'+icon('i-warn')+' '+esc(e.message)+'</span> <button class="sm" onclick="genImage()">retry</button>'; } }
   $('#imgBtn').disabled=false;
 }
 $('#imgBtn').onclick=genImage;
 $('#imgPrompt').addEventListener('keydown',e=>{ if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); genImage(); }});
 
-// ── Видео ────────────────────────────────────────────────────────────────────
+// ── Video ────────────────────────────────────────────────────────────────────
 let videoPoll=null, videoCancelled=false;
 function vidStatus(msg,busy){ const s=$('#vidStatus'); s.style.display='flex'; s.innerHTML=(busy?'<span class="spinner"></span> ':'')+esc(msg); }
 async function genVideo(){
-  const prompt=$('#vidPrompt').value.trim(); if(!prompt) return toast('Введите промпт','err');
-  clearTimeout(videoPoll); videoCancelled=false; $('#vidBtn').disabled=true; $('#vidCancel').style.display=''; $('#vidOut').innerHTML=''; vidStatus('Создаём задачу…',true);
+  const prompt=$('#vidPrompt').value.trim(); if(!prompt) return toast('Enter a prompt','err');
+  clearTimeout(videoPoll); videoCancelled=false; $('#vidBtn').disabled=true; $('#vidCancel').style.display=''; $('#vidOut').innerHTML=''; vidStatus('Creating task…',true);
   try{
     const j=await (await fetch(origin+'/api/videos/generations',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({prompt,aspect_ratio:$('#vidAspect').value,wait:false})})).json();
     const url=j.video_url||j.media_url; if(url) return showVideo(url);
-    if(!j.task_id) throw new Error(j.message||j.error||'Нет task_id'); pollVideo(j.task_id);
+    if(!j.task_id) throw new Error(j.message||j.error||'No task_id'); pollVideo(j.task_id);
   }catch(e){ vidStatus('⚠ '+e.message,false); endVideo(); }
 }
 function endVideo(){ $('#vidBtn').disabled=false; $('#vidCancel').style.display='none'; }
-function showVideo(url){ $('#vidOut').innerHTML=`<video src="${esc(url)}" controls autoplay muted></video><div class="media-actions"><a href="${esc(url)}" target="_blank" rel="noopener">открыть</a><a href="${esc(dlUrl(url,'qwen-video.mp4'))}">скачать</a></div>`; vidStatus('Готово',false); endVideo(); }
+function showVideo(url){ $('#vidOut').innerHTML=`<video src="${esc(url)}" controls autoplay muted></video><div class="media-actions"><a href="${esc(url)}" target="_blank" rel="noopener">open</a><a href="${esc(dlUrl(url,'qwen-video.mp4'))}">download</a></div>`; vidStatus('Done',false); endVideo(); }
 function pollVideo(taskId){
   const started=Date.now(), MAX=5*60*1000; let n=0;
   const tick=async()=>{
     if(videoCancelled) return;
-    n++; const sec=Math.round((Date.now()-started)/1000); vidStatus('Рендеринг… '+sec+'s (попытка '+n+')',true);
-    if(Date.now()-started>MAX){ vidStatus('⚠ Таймаут (5 мин). Задача может завершиться позже.',false); endVideo(); return; }
+    n++; const sec=Math.round((Date.now()-started)/1000); vidStatus('Rendering… '+sec+'s (attempt '+n+')',true);
+    if(Date.now()-started>MAX){ vidStatus('⚠ Timeout (5 min). The task may finish later.',false); endVideo(); return; }
     try{ const j=await (await fetch(origin+'/api/tasks/status/'+encodeURIComponent(taskId)+'?wait=false')).json();
       const url=j.video_url||j.media_url;
-      if(j.status==='completed'||url){ return url?showVideo(url):(vidStatus('⚠ completed без URL',false),endVideo()); }
-      if(j.status==='failed'){ vidStatus('⚠ '+(j.error||'Задача провалилась'),false); endVideo(); return; }
+      if(j.status==='completed'||url){ return url?showVideo(url):(vidStatus('⚠ completed without URL',false),endVideo()); }
+      if(j.status==='failed'){ vidStatus('⚠ '+(j.error||'Task failed'),false); endVideo(); return; }
     }catch{}
     videoPoll=setTimeout(tick,4000);
   };
   videoPoll=setTimeout(tick,4000);
 }
 $('#vidBtn').onclick=genVideo;
-$('#vidCancel').onclick=()=>{ videoCancelled=true; clearTimeout(videoPoll); vidStatus('Отменено',false); endVideo(); };
+$('#vidCancel').onclick=()=>{ videoCancelled=true; clearTimeout(videoPoll); vidStatus('Cancelled',false); endVideo(); };
 $('#vidPrompt').addEventListener('keydown',e=>{ if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); genVideo(); }});
 
-// ── Старт ──────────────────────────────────────────────────────────────────
+// ── Start ──────────────────────────────────────────────────────────────────
 showTab((location.hash||'#chat').slice(1)||'chat');
 loadHealth(); setInterval(loadHealth, 15000);
 </script>

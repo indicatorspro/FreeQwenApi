@@ -1,20 +1,20 @@
-// Состояние разговоров: связь между идентификаторами клиента и чатами Qwen.
+// Conversation state: link between client identifiers and Qwen chats.
 //
-// Раньше эти две Map жили прямо в роутере вместе с setInterval, из-за чего
-// сервис нельзя было ни протестировать, ни переиспользовать вне Express.
+// Previously these two Maps lived directly in router along with setInterval,
+// which made service impossible to test or reuse outside Express.
 
 import { config } from '../../config/index.js';
 import { logDebug } from '../../shared/logger.js';
 
-/** session-ключ -> { chatId, parentId, scope, timestamp } */
+/** session-key -> { chatId, parentId, scope, timestamp } */
 const sessions = new Map();
 
-/** сгенерированный chat_xxx -> реальный chatId Qwen */
+/** generated chat_xxx -> real Qwen chatId */
 const chatIdAliases = new Map();
 
 const CLEANUP_INTERVAL_MS = 600_000;
 
-/** Возвращает сохранённый контекст сессии, если он ещё не протух. */
+/** Returns saved session context if it hasn't expired yet. */
 export function getSession(key) {
     if (!key) return null;
     const entry = sessions.get(key);
@@ -29,20 +29,20 @@ export function getSession(key) {
 export function saveSession(key, { chatId, parentId, scope = null }) {
     if (!key || !chatId) return;
     sessions.set(key, { chatId, parentId: parentId ?? null, scope, timestamp: Date.now() });
-    logDebug(`Сессия ${String(key).slice(0, 8)} → чат ${chatId}${scope ? ` (scope=${scope})` : ''}`);
+    logDebug(`Session ${String(key).slice(0, 8)} → chat ${chatId}${scope ? ` (scope=${scope})` : ''}`);
 }
 
 export function mapChatId(alias, qwenChatId) {
     if (!alias || !qwenChatId) return;
     chatIdAliases.set(alias, qwenChatId);
-    logDebug(`Алиас чата: ${alias} → ${qwenChatId}`);
+    logDebug(`Chat alias: ${alias} → ${qwenChatId}`);
 }
 
 export function resolveChatIdAlias(alias) {
     return alias ? chatIdAliases.get(alias) || null : null;
 }
 
-/** Удаляет протухшие сессии. Возвращает количество удалённых. */
+/** Removes expired sessions. Returns count of removed. */
 export function cleanupSessions(now = Date.now()) {
     let removed = 0;
     for (const [key, entry] of sessions.entries()) {
@@ -51,17 +51,17 @@ export function cleanupSessions(now = Date.now()) {
             removed++;
         }
     }
-    if (removed > 0) logDebug(`Очищено сессий: ${removed}`);
+    if (removed > 0) logDebug(`Sessions cleaned up: ${removed}`);
     return removed;
 }
 
 let cleanupTimer = null;
 
-/** Запускает периодическую очистку (вызывается из точки входа сервера). */
+/** Starts periodic cleanup (called from the server entry point). */
 export function startSessionCleanup(intervalMs = CLEANUP_INTERVAL_MS) {
     if (cleanupTimer) return cleanupTimer;
     cleanupTimer = setInterval(() => cleanupSessions(), intervalMs);
-    // Таймер не должен удерживать процесс: CLI и тесты завершаются сами.
+    // The timer must not keep the process alive: CLI and tests exit on their own.
     cleanupTimer.unref?.();
     return cleanupTimer;
 }
@@ -73,7 +73,7 @@ export function stopSessionCleanup() {
     }
 }
 
-/** Только для тестов: полностью очищает состояние. */
+/** Tests only: completely clears the state. */
 export function resetConversationState() {
     sessions.clear();
     chatIdAliases.clear();

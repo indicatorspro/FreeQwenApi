@@ -1,39 +1,39 @@
-// Пример использования OpenAI SDK с системным сообщением
-// Установка: npm install openai
+// Example of using the OpenAI SDK with a system message
+// Install: npm install openai
 
 import OpenAI from 'openai';
 
 const openai = new OpenAI({
-    baseURL: 'http://localhost:3264/api', 
-    apiKey: 'dummy-key', // Ключ не используется, но требуется для SDK
+    baseURL: 'http://localhost:3264/api',
+    apiKey: 'dummy-key', // Key is not used but required by the SDK
 });
 
 async function systemMessageExample() {
     try {
-        console.log('Отправка запроса с системным сообщением к Qwen AI...\n');
+        console.log('Sending a request with a system message to Qwen AI...\n');
 
         const completion = await openai.chat.completions.create({
             messages: [
-                { 
-                    role: 'system', 
-                    content: 'Ты опытный астроном, который специализируется на планетах Солнечной системы. Отвечай научно точно, но понятным языком.' 
+                {
+                    role: 'system',
+                    content: 'You are an experienced astronomer specializing in the planets of the Solar System. Answer with scientific accuracy but in plain language.'
                 },
-                { 
-                    role: 'user', 
-                    content: 'Расскажи мне о Марсе и его особенностях' 
+                {
+                    role: 'user',
+                    content: 'Tell me about Mars and its features'
                 }
             ],
-            model: 'qwen-max-latest', 
+            model: 'qwen-max-latest',
         });
 
-        console.log('Ответ от Qwen:\n');
+        console.log('Response from Qwen:\n');
         console.log(completion.choices[0].message.content);
-        console.log('\nЗапрос с системным сообщением успешно выполнен.');
+        console.log('\nRequest with system message completed successfully.');
 
     } catch (error) {
-        console.error('Ошибка при выполнении запроса:', error);
+        console.error('Error during request:', error);
     }
 }
 
-// Запуск
-systemMessageExample(); 
+// Run
+systemMessageExample();

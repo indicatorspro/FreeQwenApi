@@ -1,6 +1,6 @@
-// Единая точка вычисления путей проекта. Раньше каждый модуль складывал
-// собственную комбинацию '..'/'..' от import.meta.url — при переносе файла
-// такие пути молча ломались.
+// Single point for computing project paths. Previously each module built its
+// own combination of '..'/'..' from import.meta.url — when moving files,
+// such paths silently broke.
 
 import path from 'path';
 import fs from 'fs';
@@ -8,7 +8,7 @@ import { fileURLToPath } from 'url';
 
 import { config } from '../config/index.js';
 
-/** Корень репозитория (на уровень выше src/). */
+/** Repository root (one level above src/). */
 export const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 export const SRC_DIR = path.join(PROJECT_ROOT, 'src');
@@ -22,15 +22,15 @@ export const AUTH_TOKEN_FILE = path.join(SESSION_DIR, 'auth_token.txt');
 export const MODELS_FILE = path.join(SRC_DIR, 'AvailableModels.txt');
 export const API_KEYS_FILE = path.join(SRC_DIR, 'Authorization.txt');
 
-/** Создаёт директорию (и родителей), если её ещё нет. */
+/** Creates directory (and parents) if it doesn't exist yet. */
 export function ensureDir(dirPath) {
     if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
     return dirPath;
 }
 
 /**
- * Безопасно строит путь внутри базовой директории.
- * Возвращает null, если результат выходит за её пределы (защита от path traversal).
+ * Safely builds path inside base directory.
+ * Returns null if result goes outside (path traversal protection).
  */
 export function safeJoin(baseDir, ...segments) {
     const target = path.resolve(baseDir, ...segments);

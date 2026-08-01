@@ -1,105 +1,152 @@
-# Архитектура
+# Architecture
 
-Три слоя, зависимости направлены только внутрь: `server → services → core`.
-Ядро не знает ни про Express, ни про формат OpenAI, поэтому его можно
-тестировать и переиспользовать из CLI или другого транспорта.
+Three layers, dependencies point only inward: `server → services → core`.
+The core knows nothing about Express or the OpenAI format, so it can be
+tested and reused from the CLI or another transport.
 
 ```text
 index.js
-└── src/server/start.js         запуск: меню, браузер, listen, graceful shutdown
-    └── src/server/app.js       сборка Express-приложения
-        ├── middleware/         авторизация, CORS, localOnly, обработка ошибок
-        ├── openai.js           формат ответов: JSON и SSE
+└── src/server/start.js         startup: menu, browser, listen, graceful shutdown
+    └── src/server/app.js       Express app assembly
+        ├── middleware/         authorization (timing-safe), CORS (origin policy), localOnly
+        ├── openai.js           response format: JSON and SSE
         └── routes/
             ├── completions.js  POST /api/(v1/)chat/completions
-            ├── legacy.js       POST /api/chat, работа с чатами
-            ├── media.js        изображения, видео, статусы задач
-            ├── files.js        загрузка файлов
-            ├── accounts.js     управление аккаунтами (только localhost)
+            ├── legacy.js       POST /api/chat, chat management
+            ├── media.js        images, video, task statuses
+            ├── files.js        file uploads
+            ├── accounts.js     account management (localhost only)
             └── system.js       health, status, models, download
 
-src/services/                   сценарии, общие для любого транспорта
-├── completions.js              диалог + инструменты + ремонт вызовов
-└── media.js                    генерация изображений и видео
+src/services/                   scenarios shared across any transport
+├── completions.js              dialog + tools + call repair
+└── media.js                    image and video generation
 
-src/core/                       домен, без знания о транспорте
-├── qwen/                       клиент Qwen Chat
-│   ├── client.js               sendMessage: аккаунт → чат → запрос → ретраи
-│   ├── transport.js            node fetch + fetch в браузере, фолбэк при WAF
-│   ├── sse.js                  разбор потока (один на оба пути)
-│   ├── payload.js              тело запроса /api/v2/chat/completions
-│   ├── chats.js, tasks.js      создание чатов, опрос долгих задач
-│   ├── pagePool.js             пул вкладок браузера
-│   ├── tokens.js, authState.js выбор аккаунта и текущий токен
-│   ├── files.js                загрузка в OSS
-│   └── media.js                поиск ссылок на медиа в ответах
-├── tools/                      вызов инструментов
-│   ├── registry.js             нормализация tools/functions, разрешение имён
-│   ├── prompt.js               описание инструментов для модели
-│   ├── parser.js               разбор ответа модели
-│   ├── stream.js               фильтр потока
-│   ├── validate.js             проверка и приведение аргументов
-│   └── transcript.js           сворачивание истории с результатами
-├── conversations/              связь id клиента ↔ чат Qwen
-├── accounts/store.js           пул аккаунтов, ротация, лимиты
-├── models/                     список моделей и алиасы
-├── history/store.js            локальная копия истории
-├── dashscope/images.js         генерация через официальный API
-└── apiKeys.js                  ключи доступа к прокси
+src/core/                       domain, transport-agnostic
+├── qwen/                       Qwen Chat client
+│   ├── client.js               sendMessage: account → chat → request → retries
+│   ├── transport.js            node fetch + browser fetch, fallback on WAF
+│   ├── antibot.js              Aliyun WAF detection (TMD, rgv587, PureCaptcha)
+│   ├── baxia.js                Baxia/AWSC runtime preparation (proactive anti-bot)
+│   ├── sse.js                  stream parsing (single implementation for both paths)
+│   ├── payload.js              request body for /api/v2/chat/completions
+│   ├── chats.js, tasks.js      chat creation, long-running task polling
+│   ├── pagePool.js             browser tab pool
+│   ├── tokens.js, authState.js account selection and current token
+│   ├── files.js                upload to OSS
+│   └── media.js                media link extraction from responses
+├── tools/                      tool calling
+│   ├── registry.js             tools/functions normalization, name resolution
+│   ├── prompt.js               tool descriptions for the model
+│   ├── parser.js               model response parsing
+│   ├── stream.js               stream filter
+│   ├── validate.js             argument validation and coercion
+│   └── transcript.js           history folding with tool results
+├── conversations/              client id ↔ Qwen chat mapping
+├── accounts/store.js           account pool, rotation, limits
+├── models/                     model list and aliases
+├── history/store.js            local history copy
+├── dashscope/images.js         generation via official API
+└── apiKeys.js                  proxy access keys
 
-src/browser/                    Puppeteer: запуск, сессия, stealth, верификация
-src/shared/                     логгер, ошибки, идентификаторы, пути
-src/config/                     конфигурация с валидацией
-src/cli/                        интерактивные сценарии консоли
+src/browser/                    Puppeteer: launch, session, stealth, verification
+src/shared/                     logger, errors, identifiers, paths, security, originPolicy
+src/config/                     configuration with validation (frozen, typed)
+src/cli/                        interactive console scenarios
 ```
 
-## Два пути к Qwen
+## Anti-Bot Protection (Aliyun WAF / Baxia)
 
-Запрос уходит либо напрямую из Node, либо через `fetch` внутри страницы
-браузера. Второй путь несёт живую сессию и не получает капчу, но требует
-открытого браузера.
+Two levels of defense against the Aliyun anti-bot system:
+
+### Proactive: Baxia Runtime (`core/qwen/baxia.js`)
+
+Before each request, loads AWSC scripts and waits for `uidToken` generation:
 
 ```text
-sendMessage
-└── executeChatRequest
-    ├── requestViaNode        быстрый; Aliyun WAF иногда подменяет ответ капчей
-    └── requestViaBrowser     фолбэк: fetch в странице, строки SSE — в Node
-                              через exposed-функцию (стриминг сохраняется)
+preparePageForApi(page, { token })
+├── localStorage.setItem('token', ...)    token synchronization
+└── ensureBaxiaReady(page)
+    ├── loadScript(awsc.js)               Anti-bot Web Security Component
+    ├── loadScript(baxiaCommon.js)        Baxia entry point
+    └── poll __baxia__.getFYModule().getUidToken()  (up to 12s)
 ```
 
-Разбор потока общий для обоих путей (`core/qwen/sse.js`). Раньше он был
-продублирован, и браузерная копия не умела отдавать чанки — при срабатывании
-WAF стриминг превращался в долгую тишину.
+Without `uidToken`, the WAF may block a request even with perfect stealth patches.
 
-## Жизненный цикл запроса с инструментами
+### Reactive: Detection (`core/qwen/antibot.js`)
+
+Recognizes signatures of blocked responses:
+
+| Signature | Meaning |
+|---|---|
+| `/_____tmd_____/punish` | TMD punish page (Aliyun anti-bot) |
+| `rgv587` | Aliyun WAF challenge page |
+| `fail_sys_user_validate` | System validation error |
+| `purecaptcha` | PureCaptcha challenge |
+| `aliyun_waf`, `_waf_` | Direct WAF markers |
+| `window._config_` + `captcha` | Combined signature |
+
+On detection: `antiBot: true` flag in `TransportResult`, status 403,
+automatic browser restart in visible mode for verification.
+
+## Two Paths to Qwen
+
+A request goes either directly from Node or via `fetch` inside a browser
+page. The strategy is controlled by `QWEN_NODE_FETCH_FIRST`:
+
+```text
+executeChatRequest
+├── nodeFetchFirst=true:
+│   ├── requestViaNode        fast (30s timeout); WAF may spoof the response
+│   └── requestViaBrowser     fallback on WAF/timeout/5xx
+└── nodeFetchFirst=false (default):
+    └── requestViaBrowser     browser immediately (carries session + Baxia, more reliable)
+```
+
+Stream parsing is shared between both paths (`core/qwen/sse.js`). Previously it was
+duplicated, and the browser copy couldn't emit chunks — when WAF triggered,
+streaming turned into prolonged silence.
+
+## Request Lifecycle with Tools
 
 ```text
 POST /api/v1/chat/completions
-  ↓ routes/completions.js      разбор тела, ключ клиента, режим стрима
+  ↓ routes/completions.js      body parsing, client key, stream mode
   ↓ services/completions.js
-      registry     ← tools[] клиента
-      resolver     ← chatId / conversation_id / сессия
-      transcript   ← сворачивание истории, если есть результаты инструментов
-      prompt       → системное сообщение с описанием инструментов
-  ↓ core/qwen/client.js        аккаунт, чат, запрос, ретраи по 401/429
-  ↓ core/tools/stream.js       фильтр: служебный JSON не уходит клиенту
-  ↓ core/tools/parser.js       <tool_call> / фенс / {"tool_calls":…}
-  ↓ core/tools/validate.js     имя из реестра, типы аргументов, обязательные поля
-  ↓ (при неудаче) уточняющий запрос к модели, TOOL_CALL_MAX_REPAIRS раз
-  ↑ server/openai.js           chat.completion или SSE с tool_calls
+      registry     ← client's tools[]
+      resolver     ← chatId / conversation_id / session
+      transcript   ← history folding if tool results are present
+      prompt       → system message with tool descriptions
+  ↓ core/qwen/client.js        account, chat, Baxia prep, request, retries
+  ↓ core/tools/stream.js       filter: internal JSON not sent to client
+  ↓ core/tools/parser.js        <tool_call> / fence / {"tool_calls":…}
+  ↓ core/tools/validate.js     name from registry, argument types, required fields
+  ↓ (on failure) clarification request to the model, TOOL_CALL_MAX_REPAIRS times
+  ↑ server/openai.js           chat.completion or SSE with tool_calls
 ```
 
-## Состояние процесса
+## Security
 
-| Что | Где | Зачем |
+| Mechanism | Where | What it does |
 |---|---|---|
-| Текущий токен Qwen | `core/qwen/authState.js` | один токен на создание чата и отправку |
-| Пул вкладок | `core/qwen/pagePool.js` | переиспользование страниц браузера |
-| Сессии диалогов | `core/conversations/store.js` | продолжение чата между запросами |
-| Алиасы чатов | там же | внутренний `chat_…` ↔ реальный id Qwen |
-| Аккаунты | `session/tokens.json` | пул, лимиты, статусы |
+| Timing-safe auth | `shared/security.js` | API key comparison without timing leakage |
+| Origin policy | `shared/originPolicy.js` | CORS: loopback + ALLOWED_ORIGINS, blocks foreign origins |
+| Stealth patches | `browser/stealth.js` | Canvas noise, mouse delay, navigator spoofing |
+| LocalOnly | `middleware/index.js` | Account management only from 127.0.0.1 |
 
-Пул аккаунтов ротируется по кругу. При 401 аккаунт помечается недействительным,
-при 429 — блокируется на срок из ответа Qwen (или `QWEN_RATELIMIT_HOURS`), и
-запрос повторяется с новым аккаунтом. `chatId` при смене аккаунта сбрасывается:
-чат принадлежит прежнему токену и под новым не существует.
+## Process State
+
+| What | Where | Why |
+|---|---|---|
+| Current Qwen token | `core/qwen/authState.js` | single token for chat creation and sending |
+| Tab pool | `core/qwen/pagePool.js` | browser page reuse |
+| Dialog sessions | `core/conversations/store.js` | chat continuation across requests |
+| Chat aliases | same location | internal `chat_…` ↔ real Qwen id |
+| Accounts | `session/tokens.json` | pool, limits, statuses |
+
+The account pool rotates in a round-robin fashion. On 401, the account is marked
+invalid; on 429, it is blocked for the duration from Qwen's response (or
+`QWEN_RATELIMIT_HOURS`), and the request is retried with a new account. The
+`chatId` is reset on account switch: the chat belongs to the previous token and
+does not exist under the new one.

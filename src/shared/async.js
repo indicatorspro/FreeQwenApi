@@ -1,15 +1,15 @@
-/** Пауза на указанное количество миллисекунд. */
+/** Pauses for the specified number of milliseconds. */
 export const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
- * Оборачивает промис таймаутом.
+ * Wraps a promise with a timeout.
  * @template T
  * @param {Promise<T>} promise
  * @param {number} ms
  * @param {string} message
  * @returns {Promise<T>}
  */
-export function withTimeout(promise, ms, message = 'Превышено время ожидания') {
+export function withTimeout(promise, ms, message = 'Operation timed out') {
     let timer;
     const timeout = new Promise((_, reject) => {
         timer = setTimeout(() => reject(new Error(message)), ms);

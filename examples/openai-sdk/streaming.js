@@ -1,39 +1,39 @@
-// Пример использования OpenAI SDK с прокси для Qwen AI в потоковом режиме
-// Установка: npm install openai
+// Example of using the OpenAI SDK with the Qwen AI proxy in streaming mode
+// Install: npm install openai
 
 import OpenAI from 'openai';
 
 const openai = new OpenAI({
-    baseURL: 'http://localhost:3264/api', 
-    apiKey: 'dummy-key', 
+    baseURL: 'http://localhost:3264/api',
+    apiKey: 'dummy-key',
 });
 
 async function streamFromQwen() {
     try {
-        console.log('Отправка потокового запроса к Qwen AI...\n');
+        console.log('Sending a streaming request to Qwen AI...\n');
 
 
         const stream = await openai.chat.completions.create({
             messages: [
-                { role: 'user', content: 'Напиши небольшую историю о космических путешествиях' }
+                { role: 'user', content: 'Write a short story about space travel' }
             ],
-            model: 'qwen-max-latest', 
-            stream: true, 
+            model: 'qwen-max-latest',
+            stream: true,
         });
 
-        console.log('Ответ от Qwen (потоковый режим):\n');
+        console.log('Response from Qwen (streaming mode):\n');
 
         for await (const chunk of stream) {
             const content = chunk.choices[0]?.delta?.content || '';
             process.stdout.write(content);
         }
 
-        console.log('\n\nПотоковый ответ завершен.');
+        console.log('\n\nStreaming response complete.');
 
     } catch (error) {
-        console.error('Ошибка при выполнении потокового запроса:', error);
+        console.error('Error during streaming request:', error);
     }
 }
 
-// Запуск
-streamFromQwen(); 
+// Run
+streamFromQwen();

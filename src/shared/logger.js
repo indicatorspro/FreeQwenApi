@@ -33,8 +33,8 @@ const transports = [
     fileTransport('raw-responses.log', 'raw')
 ];
 
-// В stdio-режиме MCP stdout занят протоколом JSON-RPC: любая посторонняя строка
-// ломает клиента, поэтому консольный транспорт отключается через LOG_CONSOLE=0.
+// In MCP stdio mode, stdout is occupied by the JSON-RPC protocol: any extraneous
+// line breaks the client, so console transport is disabled via LOG_CONSOLE=0.
 if (config.logging.console) {
     transports.push(new winston.transports.Console({ format: consoleFormat, stderrLevels: [] }));
 }

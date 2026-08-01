@@ -8,8 +8,8 @@ client = OpenAI(
 resp = client.chat.completions.create(
     model="qwen-max-latest",
     messages=[
-        {"role": "system", "content": "Ты senior Python разработчик. Отвечай коротко и с примером кода."},
-        {"role": "user", "content": "Как перевернуть список в Python?"},
+        {"role": "system", "content": "You are a senior Python developer. Answer briefly and with a code example."},
+        {"role": "user", "content": "How do I reverse a list in Python?"},
     ],
 )
 

@@ -21,7 +21,7 @@ const TOOLS = [{
     type: 'function',
     function: {
         name: 'mcp__fs__read_file',
-        description: 'Читает файл',
+        description: 'Reads a file',
         parameters: { type: 'object', properties: { path: { type: 'string' } }, required: ['path'] }
     }
 }];
@@ -42,50 +42,50 @@ afterEach(() => {
 });
 
 describe('POST /api/chat/completions', () => {
-    it('возвращает обычный ответ в формате OpenAI', async () => {
-        vi.mocked(sendMessage).mockImplementation(mockQwenReply('Привет!', { stream: false }));
+    it('returns a regular response in OpenAI format', async () => {
+        vi.mocked(sendMessage).mockImplementation(mockQwenReply('Hello!', { stream: false }));
 
         const response = await server.post('/api/chat/completions', {
-            messages: [{ role: 'user', content: 'привет' }]
+            messages: [{ role: 'user', content: 'hello' }]
         });
         const body = await response.json();
 
         expect(response.status).toBe(200);
         expect(body.object).toBe('chat.completion');
-        expect(body.choices[0].message.content).toBe('Привет!');
+        expect(body.choices[0].message.content).toBe('Hello!');
         expect(body.choices[0].finish_reason).toBe('stop');
     });
 
-    it('отвечает 400 без сообщений', async () => {
+    it('responds 400 without messages', async () => {
         const response = await server.post('/api/chat/completions', { messages: [] });
         expect(response.status).toBe(400);
     });
 
-    it('работает на пути /api/v1/chat/completions', async () => {
-        vi.mocked(sendMessage).mockImplementation(mockQwenReply('ок', { stream: false }));
+    it('works on the /api/v1/chat/completions path', async () => {
+        vi.mocked(sendMessage).mockImplementation(mockQwenReply('ok', { stream: false }));
 
         const response = await server.post('/api/v1/chat/completions', {
-            messages: [{ role: 'user', content: 'привет' }]
+            messages: [{ role: 'user', content: 'hello' }]
         });
 
         expect(response.status).toBe(200);
-        expect((await response.json()).choices[0].message.content).toBe('ок');
+        expect((await response.json()).choices[0].message.content).toBe('ok');
     });
 
-    it('отдаёт 405 на GET', async () => {
+    it('returns 405 on GET', async () => {
         expect((await server.get('/api/chat/completions')).status).toBe(405);
     });
 });
 
 describe('tool calling', () => {
-    it('превращает <tool_call> в tool_calls формата OpenAI', async () => {
+    it('converts <tool_call> into OpenAI-format tool_calls', async () => {
         vi.mocked(sendMessage).mockImplementation(mockQwenReply(
             '<tool_call>\n{"name": "mcp__fs__read_file", "arguments": {"path": "src/index.js"}}\n</tool_call>',
             { stream: false }
         ));
 
         const response = await server.post('/api/chat/completions', {
-            messages: [{ role: 'user', content: 'прочитай src/index.js' }],
+            messages: [{ role: 'user', content: 'read src/index.js' }],
             tools: TOOLS
         });
         const body = await response.json();
@@ -99,25 +99,25 @@ describe('tool calling', () => {
         expect(body.choices[0].message.tool_calls[0].id).toMatch(/^call_/);
     });
 
-    it('передаёт модели описание инструментов в системном сообщении', async () => {
-        vi.mocked(sendMessage).mockImplementation(mockQwenReply('ок', { stream: false }));
+    it('passes the tool description to the model in the system message', async () => {
+        vi.mocked(sendMessage).mockImplementation(mockQwenReply('ok', { stream: false }));
 
         await server.post('/api/chat/completions', {
-            messages: [{ role: 'system', content: 'Ты агент.' }, { role: 'user', content: 'привет' }],
+            messages: [{ role: 'system', content: 'You are an agent.' }, { role: 'user', content: 'hello' }],
             tools: TOOLS
         });
 
         const { systemMessage } = vi.mocked(sendMessage).mock.calls[0][0];
-        expect(systemMessage).toContain('Ты агент.');
+        expect(systemMessage).toContain('You are an agent.');
         expect(systemMessage).toContain('mcp__fs__read_file');
         expect(systemMessage).toContain('<tool_call>');
     });
 
-    it('не добавляет инструменты при tool_choice=none', async () => {
-        vi.mocked(sendMessage).mockImplementation(mockQwenReply('ок', { stream: false }));
+    it('does not add tools when tool_choice=none', async () => {
+        vi.mocked(sendMessage).mockImplementation(mockQwenReply('ok', { stream: false }));
 
         await server.post('/api/chat/completions', {
-            messages: [{ role: 'user', content: 'привет' }],
+            messages: [{ role: 'user', content: 'hello' }],
             tools: TOOLS,
             tool_choice: 'none'
         });
@@ -126,13 +126,13 @@ describe('tool calling', () => {
         expect(systemMessage ?? '').not.toContain('<tool_call>');
     });
 
-    it('переспрашивает модель при неизвестном имени функции', async () => {
+    it('re-asks the model when the function name is unknown', async () => {
         vi.mocked(sendMessage)
             .mockImplementationOnce(mockQwenReply('<tool_call>{"name":"ghost_tool","arguments":{}}</tool_call>', { stream: false }))
             .mockImplementationOnce(mockQwenReply('<tool_call>{"name":"mcp__fs__read_file","arguments":{"path":"a.js"}}</tool_call>', { stream: false }));
 
         const response = await server.post('/api/chat/completions', {
-            messages: [{ role: 'user', content: 'прочитай a.js' }],
+            messages: [{ role: 'user', content: 'read a.js' }],
             tools: TOOLS
         });
         const body = await response.json();
@@ -141,12 +141,12 @@ describe('tool calling', () => {
         expect(body.choices[0].message.tool_calls[0].function.name).toBe('mcp__fs__read_file');
     });
 
-    it('сворачивает результат инструмента в запрос к Qwen', async () => {
-        vi.mocked(sendMessage).mockImplementation(mockQwenReply('Файл прочитан.', { stream: false }));
+    it('folds the tool result into the request to Qwen', async () => {
+        vi.mocked(sendMessage).mockImplementation(mockQwenReply('File read.', { stream: false }));
 
         await server.post('/api/chat/completions', {
             messages: [
-                { role: 'user', content: 'прочитай a.js' },
+                { role: 'user', content: 'read a.js' },
                 { role: 'assistant', content: null, tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'mcp__fs__read_file', arguments: '{"path":"a.js"}' } }] },
                 { role: 'tool', tool_call_id: 'call_1', content: 'console.log(1)' }
             ],
@@ -161,27 +161,27 @@ describe('tool calling', () => {
 });
 
 describe('streaming', () => {
-    it('отдаёт контент дельтами', async () => {
-        vi.mocked(sendMessage).mockImplementation(mockQwenReply('Привет, как дела?'));
+    it('delivers content in deltas', async () => {
+        vi.mocked(sendMessage).mockImplementation(mockQwenReply('Hello, how are you?'));
 
         const response = await server.post('/api/chat/completions', {
-            messages: [{ role: 'user', content: 'привет' }],
+            messages: [{ role: 'user', content: 'hello' }],
             stream: true
         });
         const events = await readSse(response);
 
         expect(response.headers.get('content-type')).toContain('text/event-stream');
-        expect(sseContent(events)).toBe('Привет, как дела?');
+        expect(sseContent(events)).toBe('Hello, how are you?');
         expect(sseFinishReason(events)).toBe('stop');
     });
 
-    it('не показывает клиенту служебный JSON вызова', async () => {
+    it('does not show the client the service JSON of the call', async () => {
         vi.mocked(sendMessage).mockImplementation(mockQwenReply(
             '<tool_call>{"name":"mcp__fs__read_file","arguments":{"path":"a.js"}}</tool_call>'
         ));
 
         const response = await server.post('/api/chat/completions', {
-            messages: [{ role: 'user', content: 'прочитай a.js' }],
+            messages: [{ role: 'user', content: 'read a.js' }],
             tools: TOOLS,
             stream: true
         });
@@ -196,63 +196,63 @@ describe('streaming', () => {
         expect(calls[0].index).toBe(0);
     });
 
-    it('стримит прозу и отдельно отдаёт вызов, если модель сделала оба', async () => {
+    it('streams prose and separately delivers the call if the model produced both', async () => {
         vi.mocked(sendMessage).mockImplementation(mockQwenReply(
-            'Сейчас прочитаю.\n<tool_call>{"name":"mcp__fs__read_file","arguments":{"path":"a.js"}}</tool_call>'
+            'I will read it now.\n<tool_call>{"name":"mcp__fs__read_file","arguments":{"path":"a.js"}}</tool_call>'
         ));
 
         const events = await readSse(await server.post('/api/chat/completions', {
-            messages: [{ role: 'user', content: 'прочитай a.js' }],
+            messages: [{ role: 'user', content: 'read a.js' }],
             tools: TOOLS,
             stream: true
         }));
 
-        expect(sseContent(events)).toContain('Сейчас прочитаю.');
+        expect(sseContent(events)).toContain('I will read it now.');
         expect(sseToolCalls(events)).toHaveLength(1);
     });
 
-    it('не теряет текст, который оказался похож на вызов', async () => {
-        vi.mocked(sendMessage).mockImplementation(mockQwenReply('{"name": "это просто JSON в ответе"}'));
+    it('does not lose text that happened to look like a call', async () => {
+        vi.mocked(sendMessage).mockImplementation(mockQwenReply('{"name": "this is just JSON in the response"}'));
 
         const events = await readSse(await server.post('/api/chat/completions', {
-            messages: [{ role: 'user', content: 'покажи json' }],
+            messages: [{ role: 'user', content: 'show json' }],
             tools: TOOLS,
             stream: true
         }));
 
-        expect(sseContent(events)).toBe('{"name": "это просто JSON в ответе"}');
+        expect(sseContent(events)).toBe('{"name": "this is just JSON in the response"}');
         expect(sseFinishReason(events)).toBe('stop');
     });
 
-    it('отдаёт ответ одним куском, если Qwen ответил не потоком', async () => {
-        vi.mocked(sendMessage).mockImplementation(mockQwenReply('Ответ без потока', { stream: false }));
+    it('delivers the response in one chunk if Qwen replied without streaming', async () => {
+        vi.mocked(sendMessage).mockImplementation(mockQwenReply('Response without streaming', { stream: false }));
 
         const events = await readSse(await server.post('/api/chat/completions', {
-            messages: [{ role: 'user', content: 'привет' }],
+            messages: [{ role: 'user', content: 'hello' }],
             stream: true
         }));
 
-        expect(sseContent(events)).toBe('Ответ без потока');
+        expect(sseContent(events)).toBe('Response without streaming');
     });
 
-    it('сообщает об ошибке через поток', async () => {
-        vi.mocked(sendMessage).mockResolvedValue({ error: 'Все аккаунты заблокированы' });
+    it('reports an error through the stream', async () => {
+        vi.mocked(sendMessage).mockResolvedValue({ error: 'All accounts are blocked' });
 
         const events = await readSse(await server.post('/api/chat/completions', {
-            messages: [{ role: 'user', content: 'привет' }],
+            messages: [{ role: 'user', content: 'hello' }],
             stream: true
         }));
 
-        expect(sseContent(events)).toContain('Все аккаунты заблокированы');
+        expect(sseContent(events)).toContain('All accounts are blocked');
     });
 });
 
-describe('контекст диалога', () => {
-    it('продолжает чат по conversation_id между запросами', async () => {
-        vi.mocked(sendMessage).mockImplementation(mockQwenReply('ок', { stream: false, chatId: 'qwen-chat-42' }));
+describe('conversation context', () => {
+    it('continues the chat by conversation_id across requests', async () => {
+        vi.mocked(sendMessage).mockImplementation(mockQwenReply('ok', { stream: false, chatId: 'qwen-chat-42' }));
 
         const payload = {
-            messages: [{ role: 'user', content: 'привет' }],
+            messages: [{ role: 'user', content: 'hello' }],
             conversation_id: 'conv-1'
         };
 
@@ -262,8 +262,8 @@ describe('контекст диалога', () => {
         expect(vi.mocked(sendMessage).mock.calls[1][0].chatId).toBe('qwen-chat-42');
     });
 
-    it('не привязывает служебные запросы OpenWebUI к чату', async () => {
-        vi.mocked(sendMessage).mockImplementation(mockQwenReply('Заголовок', { stream: false }));
+    it('does not bind OpenWebUI service requests to a chat', async () => {
+        vi.mocked(sendMessage).mockImplementation(mockQwenReply('Title', { stream: false }));
 
         await server.post('/api/chat/completions', {
             messages: [{ role: 'user', content: '### Task:\nGenerate a title' }],

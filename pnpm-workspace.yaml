@@ -1,0 +1,5 @@
+allowBuilds:
+  esbuild: true
+  puppeteer: true
+patchedDependencies:
+  '@puppeteer/browsers@2.13.2': patches/@puppeteer__browsers@2.13.2.patch

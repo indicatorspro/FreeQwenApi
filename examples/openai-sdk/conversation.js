@@ -1,66 +1,66 @@
-// Пример использования OpenAI SDK для диалога с несколькими сообщениями
-// Установка: npm install openai
+// Example of using the OpenAI SDK for a multi-message conversation
+// Install: npm install openai
 
 import OpenAI from 'openai';
 
 const openai = new OpenAI({
-    baseURL: 'http://localhost:3264/api', 
-    apiKey: 'dummy-key', // Ключ не используется, но требуется для SDK
+    baseURL: 'http://localhost:3264/api',
+    apiKey: 'dummy-key', // Key is not used but required by the SDK
 });
 
 async function conversationExample() {
     try {
-        console.log('Начинаем диалог с Qwen AI...\n');
-        
-        // Первое сообщение пользователя
-        console.log('Пользователь: Привет! Расскажи о квантовой физике простыми словами.');
-        
+        console.log('Starting a conversation with Qwen AI...\n');
+
+        // First user message
+        console.log('User: Hello! Tell me about quantum physics in simple terms.');
+
         let completion = await openai.chat.completions.create({
             messages: [
-                { role: 'user', content: 'Привет! Расскажи о квантовой физике простыми словами.' }
+                { role: 'user', content: 'Hello! Tell me about quantum physics in simple terms.' }
             ],
             model: 'qwen-max-latest',
         });
-        
+
         const assistantResponse1 = completion.choices[0].message.content;
         console.log('\nQwen:', assistantResponse1);
-        
-        // Второе сообщение пользователя, включающее историю беседы
-        console.log('\nПользователь: А как это связано с теорией относительности?');
-        
+
+        // Second user message, including conversation history
+        console.log('\nUser: And how is this related to the theory of relativity?');
+
         completion = await openai.chat.completions.create({
             messages: [
-                { role: 'user', content: 'Привет! Расскажи о квантовой физике простыми словами.' },
+                { role: 'user', content: 'Hello! Tell me about quantum physics in simple terms.' },
                 { role: 'assistant', content: assistantResponse1 },
-                { role: 'user', content: 'А как это связано с теорией относительности?' }
+                { role: 'user', content: 'And how is this related to the theory of relativity?' }
             ],
             model: 'qwen-max-latest',
         });
-        
+
         const assistantResponse2 = completion.choices[0].message.content;
         console.log('\nQwen:', assistantResponse2);
-        
-        // Третье сообщение пользователя
-        console.log('\nПользователь: Спасибо! Кто из ученых внес наибольший вклад в развитие этих теорий?');
-        
+
+        // Third user message
+        console.log('\nUser: Thank you! Which scientists made the greatest contribution to the development of these theories?');
+
         completion = await openai.chat.completions.create({
             messages: [
-                { role: 'user', content: 'Привет! Расскажи о квантовой физике простыми словами.' },
+                { role: 'user', content: 'Hello! Tell me about quantum physics in simple terms.' },
                 { role: 'assistant', content: assistantResponse1 },
-                { role: 'user', content: 'А как это связано с теорией относительности?' },
+                { role: 'user', content: 'And how is this related to the theory of relativity?' },
                 { role: 'assistant', content: assistantResponse2 },
-                { role: 'user', content: 'Спасибо! Кто из ученых внес наибольший вклад в развитие этих теорий?' }
+                { role: 'user', content: 'Thank you! Which scientists made the greatest contribution to the development of these theories?' }
             ],
             model: 'qwen-max-latest',
         });
-        
+
         console.log('\nQwen:', completion.choices[0].message.content);
-        console.log('\nДиалог успешно завершен.');
+        console.log('\nConversation completed successfully.');
 
     } catch (error) {
-        console.error('Ошибка при выполнении диалога:', error);
+        console.error('Error during conversation:', error);
     }
 }
 
-// Запуск
-conversationExample(); 
+// Run
+conversationExample();

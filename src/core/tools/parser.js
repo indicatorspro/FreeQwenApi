@@ -1,189 +1,378 @@
-// Извлечение вызовов инструментов из текста ответа модели.
+// Tool call parser: extracts tool calls from model response.
 //
-// Qwen отвечает как минимум четырьмя способами: штатным <tool_call> из своего
-// chat-template, тем же JSON в markdown-фенсе, объектом {"tool_calls": [...]}
-// и голым {"name": ..., "arguments": ...}. Плюс регулярно теряет закрывающую
-// скобку в конце. Парсер обязан принимать всё перечисленное, иначе агент
-// получает «модель просто поговорила» вместо вызова.
+// Supports four formats (in priority order):
+// 1. <tool_call> tag — most common
+// 2. Markdown fence — ```json {"tool_calls":[...]} ```
+// 3. Bare JSON — {"name":"...","arguments":{...}}
+// 4. DSML (XML) — <tool_calls><invoke name="...">
+//
+// Source: heymoma + FreeQwenApi_ForgetMeAI (DSML support).
 
-const TOOL_CALL_TAG = /<tool_call>([\s\S]*?)(?:<\/tool_call>|$)/gi;
-const FENCE = /```(?:json|tool_code|tool_call)?\s*([\s\S]*?)```/gi;
+import crypto from 'crypto';
+import { parseDsmlToolCalls, looksLikeDsml } from './dsml.js';
 
-/** Маркеры, с которых может начинаться вызов — нужны и стриминг-фильтру. */
-export const TOOL_CALL_MARKERS = Object.freeze([
-    '<tool_call>',
-    '```json',
-    '```tool_call',
-    '{"tool_calls"',
-    '{ "tool_calls"',
-    '{"name"',
-    '{ "name"',
-    '{"function_call"',
-    '{"tool_call"'
-]);
-
-function stripTrailingCommas(text) {
-    return text.replace(/,\s*([}\]])/g, '$1');
+/** Removes code fences (```json ... ```). */
+function stripCodeFences(text) {
+    const trimmed = String(text || '').trim();
+    const fence = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+    return fence ? fence[1].trim() : trimmed;
 }
 
-/** Достраивает скобки, потерянные моделью в конце ответа. */
-function closeUnbalanced(text) {
-    const stack = [];
-    let inString = false;
-    let escaped = false;
-
-    for (const char of text) {
-        if (escaped) { escaped = false; continue; }
-        if (char === '\\') { escaped = true; continue; }
-        if (char === '"') { inString = !inString; continue; }
-        if (inString) continue;
-        if (char === '{' || char === '[') stack.push(char);
-        else if (char === '}' && stack[stack.length - 1] === '{') stack.pop();
-        else if (char === ']' && stack[stack.length - 1] === '[') stack.pop();
-    }
-
-    if (inString) text += '"';
-    let result = text;
-    while (stack.length > 0) {
-        result += stack.pop() === '{' ? '}' : ']';
-    }
-    return result;
-}
-
-/**
- * Разбирает JSON, последовательно применяя ремонтные стратегии.
- * @returns {unknown|undefined} — undefined, если не удалось ни одной
- */
-export function parseJsonLoose(raw) {
-    if (typeof raw !== 'string') return undefined;
-    const text = raw.trim();
-    if (!text) return undefined;
-
-    const candidates = [text];
-
-    const first = text.indexOf('{');
-    const last = text.lastIndexOf('}');
-    if (first > 0 && last > first) candidates.push(text.slice(first, last + 1));
-
-    candidates.push(stripTrailingCommas(text));
-    candidates.push(closeUnbalanced(text));
-    candidates.push(closeUnbalanced(stripTrailingCommas(text)));
-
-    // Частая поломка Qwen: закрывается массив, но не объект аргументов.
-    if (/^\s*\{\s*"tool_calls"\s*:\s*\[\s*\{/.test(text) && /\}\]\}\s*$/.test(text)) {
-        candidates.push(text.replace(/\}\]\}\s*$/, '}}]}'));
-    }
-
-    for (const candidate of candidates) {
+/** Serializes arguments to JSON string. */
+function serializeArguments(rawArgs) {
+    if (typeof rawArgs === 'string') {
+        const trimmed = rawArgs.trim();
+        if (!trimmed) return '{}';
         try {
-            const parsed = JSON.parse(candidate);
-            if (parsed && typeof parsed === 'object') return parsed;
+            return JSON.stringify(JSON.parse(trimmed));
         } catch {
-            // Пробуем следующую стратегию ремонта.
+            return rawArgs;
         }
     }
-    return undefined;
+    return JSON.stringify(rawArgs || {});
 }
 
-/** Приводит разобранный объект к списку сырых вызовов. */
-function toRawCalls(parsed) {
-    if (!parsed || typeof parsed !== 'object') return [];
+/** Normalizes tool calls to OpenAI format. */
+function normalizeToolCalls(calls) {
+    if (!Array.isArray(calls) || calls.length === 0) return null;
 
-    if (Array.isArray(parsed)) {
-        return parsed.flatMap(item => toRawCalls(item));
-    }
+    const normalized = calls.map((call, index) => {
+        const name = call?.name || call?.tool || call?.function?.name;
+        const rawArgs = call?.arguments ?? call?.args ?? call?.input ?? call?.function?.arguments ?? {};
 
-    if (Array.isArray(parsed.tool_calls)) {
-        return parsed.tool_calls.flatMap(item => toRawCalls(item));
-    }
+        if (!name) return null;
 
-    if (parsed.function_call || parsed.tool_call) {
-        return toRawCalls(parsed.function_call || parsed.tool_call);
-    }
+        return {
+            id: call.id || `call_${crypto.randomUUID().replace(/-/g, '').slice(0, 24)}`,
+            type: 'function',
+            function: { name, arguments: serializeArguments(rawArgs) },
+            index: Number.isInteger(call.index) ? call.index : index
+        };
+    }).filter(Boolean);
 
-    const fn = parsed.function && typeof parsed.function === 'object' ? parsed.function : parsed;
-    const name = fn.name || fn.tool || fn.tool_name || parsed.name;
-    if (typeof name !== 'string' || !name.trim()) return [];
-
-    const args = fn.arguments ?? fn.args ?? fn.input ?? fn.parameters ?? parsed.arguments ?? {};
-    return [{ id: typeof parsed.id === 'string' ? parsed.id : null, name: name.trim(), arguments: args }];
-}
-
-function collectTagged(content, result) {
-    TOOL_CALL_TAG.lastIndex = 0;
-    let match;
-    let firstIndex = -1;
-
-    while ((match = TOOL_CALL_TAG.exec(content)) !== null) {
-        const parsed = parseJsonLoose(match[1]);
-        const calls = toRawCalls(parsed);
-        if (calls.length > 0) {
-            if (firstIndex < 0) firstIndex = match.index;
-            result.push(...calls);
-        }
-    }
-    return firstIndex;
-}
-
-function collectFenced(content, result) {
-    FENCE.lastIndex = 0;
-    let match;
-    let firstIndex = -1;
-
-    while ((match = FENCE.exec(content)) !== null) {
-        const parsed = parseJsonLoose(match[1]);
-        const calls = toRawCalls(parsed);
-        if (calls.length > 0) {
-            if (firstIndex < 0) firstIndex = match.index;
-            result.push(...calls);
-        }
-    }
-    return firstIndex;
+    return normalized.length > 0 ? normalized : null;
 }
 
 /**
- * Извлекает вызовы инструментов из ответа модели.
- * @param {unknown} content
- * @returns {{calls: Array<{id: string|null, name: string, arguments: unknown}>, text: string} | null}
- *          text — проза до первого вызова (OpenAI разрешает её вместе с tool_calls)
+ * Parses <tool_call> tag format.
+ * @param {string} content
+ * @returns {Array|null}
  */
-export function extractToolCalls(content) {
-    if (typeof content !== 'string') return null;
-    const text = content.trim();
-    if (!text) return null;
+function parseToolCallTag(content) {
+    const matches = [...content.matchAll(/([\s\S]*?)<\/tool_call>/gi)];
+    if (matches.length === 0) return null;
 
     const calls = [];
-
-    // 1. Штатный формат Qwen: <tool_call>{...}</tool_call>
-    const taggedIndex = collectTagged(text, calls);
-    if (calls.length > 0) {
-        return { calls, text: text.slice(0, taggedIndex).trim() };
+    for (const match of matches) {
+        const inner = stripCodeFences(match[1]);
+        try {
+            const parsed = JSON.parse(inner);
+            calls.push(parsed);
+        } catch {
+            // Try to extract JSON from mixed content.
+            const jsonMatch = inner.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                try {
+                    calls.push(JSON.parse(jsonMatch[0]));
+                } catch { /* skip */ }
+            }
+        }
     }
 
-    // 2. Тот же JSON, но завёрнутый в markdown-фенс.
-    const fencedIndex = collectFenced(text, calls);
-    if (calls.length > 0) {
-        return { calls, text: text.slice(0, fencedIndex).trim() };
-    }
+    return normalizeToolCalls(calls);
+}
 
-    // 3. Голый JSON во всём ответе.
-    const parsed = parseJsonLoose(text);
-    const bare = toRawCalls(parsed);
-    if (bare.length > 0) {
-        return { calls: bare, text: '' };
+/**
+ * Parses markdown fence format.
+ * @param {string} content
+ * @returns {Array|null}
+ */
+function parseMarkdownFence(content) {
+    const fenceMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+    if (!fenceMatch) return null;
+
+    const inner = fenceMatch[1].trim();
+    try {
+        const parsed = JSON.parse(inner);
+
+        // Could be {"tool_calls": [...]} or direct array.
+        if (parsed.tool_calls) {
+            return normalizeToolCalls(parsed.tool_calls);
+        }
+        if (Array.isArray(parsed)) {
+            return normalizeToolCalls(parsed);
+        }
+        if (parsed.name || parsed.function?.name) {
+            return normalizeToolCalls([parsed]);
+        }
+    } catch { /* not JSON */ }
+
+    return null;
+}
+
+/**
+ * Parses bare JSON format.
+ * @param {string} content
+ * @returns {Array|null}
+ */
+function parseBareJson(content) {
+    const trimmed = stripCodeFences(content);
+
+    // Try direct parse.
+    try {
+        const parsed = JSON.parse(trimmed);
+
+        if (parsed.tool_calls) {
+            return normalizeToolCalls(parsed.tool_calls);
+        }
+        if (Array.isArray(parsed)) {
+            return normalizeToolCalls(parsed);
+        }
+        if (parsed.name || parsed.function?.name) {
+            return normalizeToolCalls([parsed]);
+        }
+    } catch { /* not JSON */ }
+
+    // Try to extract JSON object from text.
+    const jsonMatch = trimmed.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+        try {
+            const parsed = JSON.parse(jsonMatch[0]);
+            if (parsed.name || parsed.function?.name) {
+                return normalizeToolCalls([parsed]);
+            }
+            if (parsed.tool_calls) {
+                return normalizeToolCalls(parsed.tool_calls);
+            }
+        } catch { /* skip */ }
     }
 
     return null;
 }
 
 /**
- * Может ли текст быть началом вызова инструмента.
- * Используется стриминг-фильтром, чтобы не отдавать клиенту служебный JSON.
+ * Main parser: tries all formats in priority order.
+ *
+ * @param {string} content — model response text
+ * @returns {Array<{id: string, type: string, function: {name: string, arguments: string}, index: number}>|null}
  */
-export function looksLikeToolCallStart(text) {
-    const trimmed = text.trimStart();
-    if (!trimmed) return false;
-    return TOOL_CALL_MARKERS.some(marker =>
-        trimmed.startsWith(marker) || marker.startsWith(trimmed.slice(0, marker.length))
-    );
+export function parseToolCalls(content) {
+    if (!content || typeof content !== 'string') return null;
+
+    // 1. <tool_call> tag (highest priority).
+    const tagResult = parseToolCallTag(content);
+    if (tagResult) return tagResult;
+
+    // 2. Markdown fence.
+    const fenceResult = parseMarkdownFence(content);
+    if (fenceResult) return fenceResult;
+
+    // 3. Bare JSON.
+    const jsonResult = parseBareJson(content);
+    if (jsonResult) return jsonResult;
+
+    // 4. DSML (XML) — check last as it's legacy.
+    if (looksLikeDsml(content)) {
+        const dsmlResult = parseDsmlToolCalls(content);
+        if (dsmlResult) return dsmlResult;
+    }
+
+    return null;
+}
+
+/**
+ * Detects if content contains tool calls (quick check).
+ * @param {string} content
+ * @returns {boolean}
+ */
+export function hasToolCalls(content) {
+    if (!content || typeof content !== 'string') return false;
+    const lower = content.toLowerCase();
+    return lower.includes('<tool_call>') ||
+           lower.includes('"tool_calls"') ||
+           lower.includes('"name"') && lower.includes('"arguments"') ||
+           looksLikeDsml(content);
+}
+
+/**
+ * Markers that may indicate the start of a tool call in a streamed chunk.
+ * Used by the stream filter to hold back partial tool-call JSON.
+ */
+export const TOOL_CALL_MARKERS = ['<tool_call>', '{"tool_calls"', '{"name"', '```json'];
+
+
+/**
+ * Parses JSON with repair heuristics for truncated or slightly malformed
+ * tool-call payloads. Returns undefined when the input is not JSON-like.
+ */
+export function parseJsonLoose(raw) {
+    if (typeof raw !== 'string') return undefined;
+    const text = raw.trim();
+    if (!text) return undefined;
+    if (!text.startsWith('{') && !text.startsWith('[')) return undefined;
+
+    const direct = tryParseJson(text);
+    if (direct !== undefined) return direct;
+
+    const candidates = [
+        text.replace(/,\s*([}\]])/g, '$1'),
+        text.replace(/'\s*([}\]])/g, '$1'),
+        text.replace(/]\s*}\s*$/, '}}]')
+    ];
+
+    for (const candidate of candidates) {
+        const parsed = tryParseJson(candidate);
+        if (parsed !== undefined) return parsed;
+    }
+
+    for (const candidate of candidates) {
+        const parsed = tryParseJson(repairJsonBrackets(candidate));
+        if (parsed !== undefined) return parsed;
+    }
+
+    return undefined;
+}
+
+
+function tryParseJson(text) {
+    try {
+        return JSON.parse(text);
+    } catch {
+        return undefined;
+    }
+}
+
+function repairJsonBrackets(text) {
+    const stack = [];
+    let out = '';
+    let inString = false;
+    let escaped = false;
+
+    for (const ch of text) {
+        if (inString) {
+            out += ch;
+            if (escaped) {
+                escaped = false;
+            } else if (ch === '\\') {
+                escaped = true;
+            } else if (ch === '"') {
+                inString = false;
+            }
+            continue;
+        }
+
+        if (ch === '"') {
+            inString = true;
+            out += ch;
+            continue;
+        }
+
+        if (ch === '{' || ch === '[') {
+            stack.push(ch);
+            out += ch;
+            continue;
+        }
+
+        if (ch === '}' || ch === ']') {
+            const wanted = ch === '}' ? '{' : '[';
+            while (stack.length && stack[stack.length - 1] !== wanted) {
+                const open = stack.pop();
+                out += open === '{' ? '}' : ']';
+            }
+            if (stack.length && stack[stack.length - 1] === wanted) {
+                stack.pop();
+                out += ch;
+            }
+            continue;
+        }
+
+        out += ch;
+    }
+
+    while (stack.length) {
+        const open = stack.pop();
+        out += open === '{' ? '}' : ']';
+    }
+
+    return out;
+}
+
+
+/**
+ * Extracts tool calls from raw model text.
+ * Returns { text, calls } or null when no tool call is present.
+ */
+export function extractToolCalls(content) {
+    if (typeof content !== 'string') return null;
+    const trimmed = content.trim();
+    if (!trimmed) return null;
+
+    return extractTagCalls(content) || extractBareJsonCalls(trimmed);
+}
+
+// stripCodeFences is defined above.
+
+function toCallDescriptor(parsed) {
+    if (!parsed || typeof parsed !== 'object') return null;
+
+    const name = parsed.name || parsed.function?.name || parsed.tool;
+    if (!name || typeof name !== 'string') return null;
+
+    let args = parsed.arguments ?? parsed.args ?? parsed.input ?? parsed.function?.arguments ?? {};
+    if (typeof args === 'string') {
+        args = parseJsonLoose(args) ?? {};
+    }
+    if (!args || typeof args !== 'object') {
+        args = {};
+    }
+
+    return {
+        id: typeof parsed.id === 'string' && parsed.id ? parsed.id : null,
+        name,
+        arguments: args
+    };
+}
+
+
+function extractTagCalls(content) {
+    const openTag = '<tool_call>';
+    const closeTag = '</tool_call>';
+    const firstOpen = content.indexOf(openTag);
+    if (firstOpen < 0) return null;
+
+    const text = content.slice(0, firstOpen).trim();
+    const calls = [];
+    const segments = content.slice(firstOpen).split(openTag).slice(1);
+
+    for (const segment of segments) {
+        let jsonPart = segment;
+        const closeIdx = segment.indexOf(closeTag);
+        if (closeIdx >= 0) jsonPart = segment.slice(0, closeIdx);
+
+        const descriptor = toCallDescriptor(parseJsonLoose(stripCodeFences(jsonPart)));
+        if (descriptor) calls.push(descriptor);
+    }
+
+    return calls.length > 0 ? { text, calls } : null;
+}
+
+function extractBareJsonCalls(content) {
+    const parsed = parseJsonLoose(stripCodeFences(content));
+    if (!parsed || typeof parsed !== 'object') return null;
+
+    if (Array.isArray(parsed.tool_calls)) {
+        const calls = parsed.tool_calls.map(toCallDescriptor).filter(Boolean);
+        return calls.length > 0 ? { text: '', calls } : null;
+    }
+
+    const hasName = Boolean(parsed.name || parsed.function?.name);
+    const hasArgs = parsed.arguments !== undefined || parsed.args !== undefined ||
+        parsed.input !== undefined || parsed.function?.arguments !== undefined;
+
+    if (hasName && hasArgs) {
+        const descriptor = toCallDescriptor(parsed);
+        if (descriptor) return { text: '', calls: [descriptor] };
+    }
+
+    return null;
 }

@@ -1,4 +1,4 @@
-// Запуск прокси: стартовое меню, браузер, HTTP-сервер, корректное завершение.
+// Proxy startup: startup menu, browser, HTTP server, graceful shutdown.
 
 import { config } from '../config/index.js';
 import { logError, logInfo } from '../shared/logger.js';
@@ -18,37 +18,37 @@ const BANNER = `
 ██      ██   ██ ██      ██      ██ ▄▄ ██ ██ ███ ██ ██      ██  ██ ██ ██   ██ ██      ██
 ██      ██   ██ ███████ ███████  ██████   ███ ███  ███████ ██   ████ ██   ██ ██      ██
                                     ▀▀
-   OpenAI-совместимый прокси к Qwen Chat
+   OpenAI-compatible proxy for Qwen Chat
 `;
 
-/** Проверяет, что есть с чем стартовать, когда меню пропущено. */
+/** Checks that there is something to start with when the menu is skipped. */
 function ensureAccountsForHeadlessStart() {
     const summary = accountsSummary();
 
     if (summary.total === 0) {
-        logError('Не найдено ни одного аккаунта. Запустите `npm run auth` перед стартом сервера.');
+        logError('No accounts found. Run `npm run auth` before starting the server.');
         process.exit(1);
     }
     if (summary.available === 0) {
-        logError('Все аккаунты недоступны. Обновите авторизацию перед стартом сервера.');
+        logError('All accounts are unavailable. Refresh authentication before starting the server.');
         process.exit(1);
     }
 
-    logInfo(`Аккаунтов: ${summary.total}, доступно: ${summary.available}`);
+    logInfo(`Accounts: ${summary.total}, available: ${summary.available}`);
 }
 
-/** Стартовое меню: аккаунты или сразу запуск. */
+/** Startup menu: accounts or immediate launch. */
 async function runStartupMenu() {
     for (;;) {
         printAccounts();
 
-        console.log('\n=== Меню ===');
-        console.log('1 - Добавить новый аккаунт');
-        console.log('2 - Перелогинить аккаунт с истёкшим токеном');
-        console.log('3 - Запустить прокси (по умолчанию)');
-        console.log('4 - Удалить аккаунт');
+        console.log('\n=== Menu ===');
+        console.log('1 - Add a new account');
+        console.log('2 - Re-login an account with an expired token');
+        console.log('3 - Start the proxy (default)');
+        console.log('4 - Remove an account');
 
-        const choice = (await prompt('Ваш выбор (Enter = 3): ')) || '3';
+        const choice = (await prompt('Your choice (Enter = 3): ')) || '3';
 
         if (choice === '1') {
             await addAccountInteractive();
@@ -58,7 +58,7 @@ async function runStartupMenu() {
             await removeAccountInteractive();
         } else if (choice === '3') {
             if (accountsSummary().available === 0) {
-                console.log('Для запуска нужен хотя бы один рабочий аккаунт.');
+                console.log('At least one working account is required to start.');
                 continue;
             }
             return;
@@ -71,14 +71,14 @@ function logStartupSummary() {
     const base = `http://${host}:${config.server.port}`;
     const keys = getApiKeys();
 
-    logInfo(`Сервер запущен: ${config.server.host}:${config.server.port}`);
-    logInfo(`API: ${base}/api  •  дашборд: ${base}/dashboard`);
-    logInfo(`OpenAI-совместимый эндпоинт: POST ${base}/api/v1/chat/completions`);
-    logInfo(`Моделей доступно: ${getAvailableModels().length}, аккаунтов: ${listAccounts().length}`);
+    logInfo(`Server started: ${config.server.host}:${config.server.port}`);
+    logInfo(`API: ${base}/api  •  dashboard: ${base}/dashboard`);
+    logInfo(`OpenAI-compatible endpoint: POST ${base}/api/v1/chat/completions`);
+    logInfo(`Models available: ${getAvailableModels().length}, accounts: ${listAccounts().length}`);
     logInfo(keys.length > 0
-        ? `Авторизация клиентов включена (ключей: ${keys.length})`
-        : 'Авторизация клиентов отключена (Authorization.txt пуст)');
-    logInfo('Вызов инструментов (tools/function calling) включён для агентов: Codex, Claude Code, OpenCode и др.');
+        ? `Client authentication enabled (keys: ${keys.length})`
+        : 'Client authentication disabled (Authorization.txt is empty)');
+    logInfo('Tool calling (tools/function calling) enabled for agents: Codex, Claude Code, OpenCode, etc.');
 }
 
 let server = null;
@@ -88,7 +88,7 @@ async function shutdown(code = 0) {
     if (shuttingDown) return;
     shuttingDown = true;
 
-    logInfo('Завершение работы…');
+    logInfo('Shutting down…');
     stopSessionCleanup();
 
     if (server) {
@@ -96,7 +96,7 @@ async function shutdown(code = 0) {
     }
     await shutdownBrowser();
 
-    logInfo('Готово.');
+    logInfo('Done.');
     process.exit(code);
 }
 
@@ -105,15 +105,15 @@ function registerShutdownHandlers() {
         process.on(signal, () => { shutdown(0); });
     }
     process.on('uncaughtException', (error) => {
-        logError('Необработанное исключение', error);
+        logError('Uncaught exception', error);
         shutdown(1);
     });
     process.on('unhandledRejection', (reason) => {
-        logError('Необработанное отклонение промиса', reason instanceof Error ? reason : new Error(String(reason)));
+        logError('Unhandled promise rejection', reason instanceof Error ? reason : new Error(String(reason)));
     });
 }
 
-/** Точка входа сервера. */
+/** Server entry point. */
 export async function startServer() {
     console.log(BANNER);
     registerShutdownHandlers();
@@ -126,7 +126,7 @@ export async function startServer() {
 
     const browserReady = await initBrowser(config.browser.visible);
     if (!browserReady) {
-        logError('Не удалось инициализировать браузер. Завершение работы.');
+        logError('Failed to initialize browser. Shutting down.');
         process.exit(1);
     }
 
@@ -142,7 +142,7 @@ export async function startServer() {
 
         server.on('error', async (error) => {
             if (error.code === 'EADDRINUSE') {
-                logError(`Порт ${config.server.port} уже занят. Возможно, сервер уже запущен.`);
+                logError(`Port ${config.server.port} is already in use. The server may already be running.`);
                 await shutdownBrowser();
                 process.exit(1);
             }

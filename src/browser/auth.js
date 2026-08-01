@@ -1,4 +1,4 @@
-// Проверка состояния авторизации в открытом браузере.
+// Checks authentication state in the open browser.
 
 import { config } from '../config/index.js';
 import { delay } from '../shared/async.js';
@@ -11,7 +11,7 @@ const isPlaywright = (context) => context && typeof context.newPage === 'functio
 async function getPage(context) {
     if (context && typeof context.goto === 'function') return context;
     if (context && typeof context.newPage === 'function') return context.newPage();
-    throw new Error('Неверный контекст браузера: ожидается Page или BrowserContext');
+    throw new Error('Invalid browser context: expected Page or BrowserContext');
 }
 
 function promptUser(question) {
@@ -27,7 +27,7 @@ function promptUser(question) {
     });
 }
 
-/** Наличие формы входа означает, что сессия не авторизована. */
+/** Presence of a login form means the session is not authenticated. */
 async function countLoginContainers(page, playwright) {
     if (playwright) return page.locator('.login-container').count();
     return (await page.$$('.login-container')).length;
@@ -35,16 +35,16 @@ async function countLoginContainers(page, playwright) {
 
 function printLoginInstructions() {
     console.log('------------------------------------------------------');
-    console.log('               НЕОБХОДИМА АВТОРИЗАЦИЯ');
+    console.log('               AUTHENTICATION REQUIRED');
     console.log('------------------------------------------------------');
-    console.log('1. Войдите в Qwen Chat в открытом браузере');
-    console.log('2. Дождитесь завершения входа');
-    console.log('3. Нажмите ENTER в этой консоли');
+    console.log('1. Log in to Qwen Chat in the open browser');
+    console.log('2. Wait for the login to complete');
+    console.log('3. Press ENTER in this console');
     console.log('------------------------------------------------------');
 }
 
 /**
- * Проверяет (и при необходимости дожидается) авторизацию.
+ * Checks (and waits for if necessary) authentication.
  * @returns {Promise<boolean>}
  */
 export async function checkAuthentication(context) {
@@ -54,7 +54,7 @@ export async function checkAuthentication(context) {
         const page = await getPage(context);
         const playwright = isPlaywright(context);
 
-        logInfo('Проверка авторизации…');
+        logInfo('Checking authentication…');
 
         try {
             await page.goto(config.qwen.chatPageUrl, {
@@ -65,37 +65,37 @@ export async function checkAuthentication(context) {
             await delay(config.timeouts.retryDelay);
 
             if ((await page.title()).includes('Verification')) {
-                logWarn('Открыта страница верификации — пройдите её вручную');
-                await promptUser('После прохождения верификации нажмите ENTER…');
+                logWarn('Verification page is open — please complete it manually');
+                await promptUser('After completing verification, press ENTER…');
             }
 
             if (await countLoginContainers(page, playwright) === 0) {
-                logInfo('Авторизация активна');
+                logInfo('Authentication is active');
                 setAuthenticationStatus(true);
                 try {
                     await saveSession(context);
                 } catch (error) {
-                    logError('Не удалось обновить сессию', error);
+                    logError('Failed to update session', error);
                 }
                 if (playwright) await page.close();
                 return true;
             }
 
             printLoginInstructions();
-            await promptUser('После успешной авторизации нажмите ENTER…');
+            await promptUser('After successful authentication, press ENTER…');
 
             await page.reload({ waitUntil: 'domcontentloaded', timeout: config.timeouts.page });
             await delay(3000);
 
             if (await countLoginContainers(page, playwright) === 0) {
-                logInfo('Авторизация подтверждена');
+                logInfo('Authentication confirmed');
                 setAuthenticationStatus(true);
                 await saveSession(context);
                 if (playwright) await page.close();
                 return true;
             }
 
-            logWarn('Авторизация не обнаружена');
+            logWarn('Authentication not detected');
             setAuthenticationStatus(false);
             return false;
         } catch (error) {
@@ -103,29 +103,29 @@ export async function checkAuthentication(context) {
             throw error;
         }
     } catch (error) {
-        logError('Ошибка при проверке авторизации', error);
+        logError('Error checking authentication', error);
         setAuthenticationStatus(false);
         return false;
     }
 }
 
-/** Ручной вход через страницу входа Qwen. */
+/** Manual login via the Qwen login page. */
 export async function startManualAuthentication(context, skipRestart = false) {
     try {
         const page = await getPage(context);
         const playwright = isPlaywright(context);
 
-        logInfo('Открытие страницы входа…');
+        logInfo('Opening login page…');
         await page.goto(config.qwen.authSigninUrl, { waitUntil: 'load', timeout: config.timeouts.page });
 
         printLoginInstructions();
-        await promptUser('После успешной авторизации нажмите ENTER…');
+        await promptUser('After successful authentication, press ENTER…');
 
         await page.goto(config.qwen.chatPageUrl, { waitUntil: 'domcontentloaded', timeout: config.timeouts.page });
         await delay(config.timeouts.retryDelay);
 
         if (await countLoginContainers(page, playwright) === 0) {
-            logInfo('Авторизация подтверждена');
+            logInfo('Authentication confirmed');
             setAuthenticationStatus(true);
             await saveSession(context);
             if (playwright) await page.close();
@@ -133,22 +133,22 @@ export async function startManualAuthentication(context, skipRestart = false) {
             return true;
         }
 
-        logWarn('Авторизация не удалась');
+        logWarn('Authentication failed');
         setAuthenticationStatus(false);
         return false;
     } catch (error) {
-        logError('Ошибка при ручной авторизации', error);
+        logError('Error during manual authentication', error);
         setAuthenticationStatus(false);
         return false;
     }
 }
 
-/** Показывает ли страница запрос верификации. */
+/** Whether the page shows a verification prompt. */
 export async function checkVerification(page) {
     try {
         if ((await page.title()).includes('Verification')) {
-            logWarn('Обнаружена страница верификации');
-            await promptUser('Пройдите верификацию и нажмите ENTER…');
+            logWarn('Verification page detected');
+            await promptUser('Complete verification and press ENTER…');
             return true;
         }
         return false;

@@ -1,5 +1,5 @@
-// Собственные (не OpenAI) эндпоинты прокси: POST /api/chat и работа с чатами.
-// Отличаются от /chat/completions поддержкой chatType (t2i/t2v) и упрощённым телом.
+// Own (non-OpenAI) proxy endpoints: POST /api/chat and chat operations.
+// Differ from /chat/completions by supporting chatType (t2i/t2v) and simplified body.
 
 import express from 'express';
 
@@ -13,10 +13,11 @@ import { nextAvailableAccount } from '../../core/accounts/store.js';
 import { isMetaRequest } from '../../core/conversations/resolver.js';
 import { appendMessages, listChats, loadHistory } from '../../core/history/store.js';
 import { CompletionStream } from '../openai.js';
+import { sendApiResultError } from '../apiErrors.js';
 
 const router = express.Router();
 
-/** Достаёт текст запроса из тела: поддерживаются и message, и messages. */
+/** Extracts request text from body: supports both message and messages. */
 function extractMessage(body) {
     if (body.message) {
         const system = Array.isArray(body.messages)
@@ -38,7 +39,7 @@ router.post('/chat', async (req, res, next) => {
         const { content, systemMessage } = extractMessage(body);
 
         if (!content) {
-            return res.status(400).json({ error: 'Сообщение не указано' });
+            return res.status(400).json({ error: 'Message not specified' });
         }
 
         const isMeta = isMetaRequest(body.messages);
@@ -46,7 +47,7 @@ router.post('/chat', async (req, res, next) => {
         const chatId = isMeta ? null : normalizeId(body.chatId);
         const parentId = isMeta ? null : normalizeId(body.parentId);
 
-        logInfo(`Запрос /api/chat, модель: ${model}${body.stream ? ' (stream)' : ''}`);
+        logInfo(`/api/chat request, model: ${model}${body.stream ? ' (stream)' : ''}`);
 
         if (!body.stream) {
             const result = await sendMessage({
@@ -92,7 +93,7 @@ router.post('/chat', async (req, res, next) => {
             return sse.end('stop');
         }
 
-        // Qwen мог ответить обычным JSON вместо потока — тогда шлём одним куском.
+        // Qwen may have responded with plain JSON instead of a stream — then we send it in one chunk.
         if (!streamedAny && result.choices?.[0]?.message?.content) {
             sse.content(result.choices[0].message.content);
         }
@@ -100,7 +101,7 @@ router.post('/chat', async (req, res, next) => {
         return sse.end('stop');
     } catch (error) {
         if (res.headersSent) {
-            try { res.end(); } catch { /* соединение закрыто */ }
+            try { res.end(); } catch { /* connection closed */ }
             return undefined;
         }
         return next(error);
@@ -113,24 +114,28 @@ router.post('/chats', async (req, res, next) => {
         const chatModel = mapModel(model);
         const context = getBrowserContext();
 
-        if (!context) return res.status(503).json({ error: 'Браузер не инициализирован' });
+        if (!context) {
+            return sendApiResultError(res, { error: 'Browser not initialized', status: 503 });
+        }
 
         const account = nextAvailableAccount();
-        if (!account?.token) return res.status(503).json({ error: 'Нет доступных аккаунтов Qwen' });
+        if (!account?.token) {
+            return sendApiResultError(res, { error: 'No available Qwen accounts', status: 503 });
+        }
 
         const result = await createChat({
             context,
             token: account.token,
             model: chatModel,
-            title: name || 'Новый чат'
+            title: name || 'New chat'
         });
 
         if (result.error) {
-            logError(`Не удалось создать чат: ${result.error}`);
-            return res.status(500).json({ error: result.error });
+            logError(`Failed to create chat: ${result.error}`);
+            return sendApiResultError(res, result);
         }
 
-        logInfo(`Создан чат: ${result.chatId}`);
+        logInfo(`Chat created: ${result.chatId}`);
         return res.json({ chatId: result.chatId, success: true });
     } catch (error) {
         next(error);
@@ -158,7 +163,7 @@ router.post('/chats/:chatId/history', (req, res, next) => {
     try {
         const { messages } = req.body || {};
         if (!Array.isArray(messages)) {
-            return res.status(400).json({ error: 'История сообщений должна быть массивом' });
+            return res.status(400).json({ error: 'Message history must be an array' });
         }
 
         appendMessages(req.params.chatId, messages);

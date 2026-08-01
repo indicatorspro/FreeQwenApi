@@ -1,4 +1,4 @@
-// Сборка API-роутера.
+// Assembles the API router.
 
 import express from 'express';
 
