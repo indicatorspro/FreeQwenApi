@@ -32,6 +32,32 @@ export function isThinkingLocked(model) {
 }
 
 /**
+ * Builds the per-message feature_config.
+ * Video (t2v) requests additional research/thinking fields that the Qwen web
+ * app sends for generation tasks; text/image keep the base config.
+ *
+ * @param {object} params
+ * @param {string} params.model
+ * @param {string} params.chatType — t2t/t2i/t2v
+ * @returns {object}
+ */
+export function buildFeatureConfig({ model, chatType }) {
+    const featureConfig = {
+        thinking_enabled: isThinkingLocked(model) || chatType === CHAT_TYPES.VIDEO,
+        output_schema: 'phase'
+    };
+
+    if (chatType === CHAT_TYPES.VIDEO) {
+        featureConfig.research_mode = 'normal';
+        featureConfig.auto_thinking = true;
+        featureConfig.thinking_format = 'summary';
+        featureConfig.auto_search = true;
+    }
+
+    return featureConfig;
+}
+
+/**
  * Validates message content.
  * @param {string|Array} message
  * @returns {{ content: string|null, error: string|null }}
@@ -116,10 +142,7 @@ export function buildChatPayload({
         files: files || [],
         childrenIds: [assistantChildId],
         extra: { meta: { subChatType: chatType } },
-        feature_config: {
-            thinking_enabled: isThinkingLocked(model),
-            output_schema: 'phase'
-        }
+        feature_config: buildFeatureConfig({ model, chatType })
     };
 
     messages.push(userMessage);

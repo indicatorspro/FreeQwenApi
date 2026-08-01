@@ -319,7 +319,8 @@ export async function requestViaBrowser({ page, url, payload, token, onChunk = n
                 status: result.status,
                 statusText: result.statusText,
                 errorBody: result.body,
-                error: result.error
+                error: result.error,
+                streamed: Boolean(live?.streamed)
             };
         }
 
@@ -331,7 +332,7 @@ export async function requestViaBrowser({ page, url, payload, token, onChunk = n
         });
     } catch (error) {
         logWarn(`requestViaBrowser: failed: ${error.message}`);
-        return { ok: false, error: String(error.message || error) };
+        return { ok: false, error: String(error.message || error), streamed: Boolean(live?.streamed) };
     } finally {
         if (bindingName && typeof page.removeExposedFunction === 'function') {
             // Tab returns to pool: name must be free for next request.

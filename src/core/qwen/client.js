@@ -49,10 +49,23 @@ function resolveModel(model) {
 }
 
 /** Handle Qwen failure: anti-bot, verification, expired token, rate limit. */
-async function handleFailure(response, account, options) {
+export async function handleFailure(response, account, options) {
     logRaw(JSON.stringify(response));
     logError(`Qwen response error: ${response.error || response.statusText || response.status}`);
     if (response.errorBody) logDebug(`Error body: ${response.errorBody}`);
+
+    // Partial stream guard: if chunks were already emitted to the client, we
+    // must NOT rotate accounts / retry — the client would receive a duplicated
+    // or inconsistent stream. Surface the error and let the client decide.
+    if (response.streamed === true) {
+        logWarn(`Stream already started (${response.error || 'error'}), not rotating accounts`);
+        return {
+            error: response.error || response.statusText || `HTTP ${response.status}`,
+            details: response.errorBody || 'No additional details',
+            chatId: options.chatId,
+            streamed: true
+        };
+    }
 
     const errorBody = String(response.errorBody || '');
 

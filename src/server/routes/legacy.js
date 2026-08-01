@@ -82,6 +82,8 @@ router.post('/chat', async (req, res, next) => {
             chatId,
             parentId,
             systemMessage,
+            chatType: body.chatType || 't2t',
+            size: body.size || null,
             onChunk: (chunk) => {
                 streamedAny = true;
                 sse.content(chunk);
