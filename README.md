@@ -1,7 +1,7 @@
 # FreeQwenApi
 
-> **Local OpenAI-compatible proxy for Qwen Chat**
-> Text, Qwen 3.7 models, files, Open WebUI, Hermes/LiteLLM, and now image and video generation through Qwen Chat.
+> **Local OpenAI/Anthropic-compatible proxy for Qwen Chat**
+> Text, Qwen 3.7 models, files, Open WebUI, Claude Code, and image/video generation through Qwen Chat.
 
 ![API](https://img.shields.io/badge/API-OpenAI--compatible-green)
 ![Qwen](https://img.shields.io/badge/Qwen-Chat-purple)
@@ -18,32 +18,35 @@ This is **not a local model running on your GPU** and **not the official Alibaba
 
 ## Fork features
 
-- **Chat Completions API**: `POST /api/chat/completions`, compatible with OpenAI SDK, Open WebUI, LiteLLM and agents.
+- **Chat Completions API**: `POST /api/chat/completions` (and `/api/v1/chat/completions`), compatible with OpenAI SDK, Open WebUI, LiteLLM and agents.
+- **Anthropic Messages shim**: `POST /api/messages` (and `/api/v1/messages`) — Claude Code can point `ANTHROPIC_BASE_URL` directly at the proxy, no LiteLLM bridge needed. Streaming SSE with real `tool_use` blocks.
 - **Tool calling for coding agents**: the `tools` field from the request is turned into real `tool_calls` — Codex, OpenCode, Cline, Continue and tools from MCP servers connected to them work ([docs/TOOL_CALLING.md](docs/TOOL_CALLING.md)).
 - **Current Qwen Chat models**: `qwen3.7-max`, `qwen3.7-plus`, `qwen3.6-plus` and other models from `src/AvailableModels.txt`.
 - **Image generation through Qwen Chat**: `POST /api/images/generations` without `DASHSCOPE_API_KEY`.
 - **Video generation through Qwen Chat**: `POST /api/videos/generations` + task polling via `GET /api/tasks/status/:taskId`.
 - **Multi-account**: adding, re-login, removal, statuses `OK` / `WAIT` / `INVALID`, automatic round-robin rotation on limits.
+- **Client isolation**: each client (IP + User-Agent + API-key fingerprint) gets deterministic, isolated chat aliases — no cross-client collisions.
+- **Resource affinity**: chats, file uploads and generation tasks stay bound to the account that owns them; bindings survive restarts (`session/affinity.json`).
 - **File upload**: upload endpoint for files and Qwen attachments.
 - **Open WebUI**: can be connected as an OpenAI-compatible backend.
 - **Hermes Agent / LiteLLM / Claude Code**: ready-made config examples for local AI agents.
-- **Health/smoke tooling**: `/api/health`, `/api/status`, `/api/models`, `npm run smoke`, `npm run models:sync`.
+- **Health/smoke tooling**: `/api/health`, `/api/status`, `/api/models`, `pnpm run smoke`, `pnpm run smoke:media`, `pnpm run models:sync`.
 
 ## Quick start
 
 ```bash
-git clone https://github.com/heymoma/FreeQwenApi
+git clone https://github.com/indicatorspro/FreeQwenApi
 cd FreeQwenApi
-npm install
-npm run auth
-npm run models:sync
-SKIP_ACCOUNT_MENU=true npm start
+pnpm install
+pnpm run auth
+pnpm run models:sync
+SKIP_ACCOUNT_MENU=true pnpm start
 ```
 
 In another terminal:
 
 ```bash
-npm run smoke
+pnpm run smoke
 ```
 
 If everything is fine, the API is available here:
@@ -60,26 +63,24 @@ Variables are read from the process environment. Set the required ones in a conv
 
 ```bash
 export PORT=3264 DEFAULT_MODEL=qwen3.7-max   # bash
-$env:PORT=3264; npm start                    # PowerShell
+$env:PORT=3264; pnpm start                   # PowerShell
 ```
-
-or through the `environment:` block in `docker-compose.yml` / `-e` flags for `docker run`.
 
 ## Qwen Chat authentication
 
 Add an account:
 
 ```bash
-npm run auth
+pnpm run auth
 ```
 
 Or immediately a specific action:
 
 ```bash
-npm run auth -- --add
-npm run auth -- --list
-npm run auth -- --relogin
-npm run auth -- --remove
+pnpm run auth -- --add
+pnpm run auth -- --list
+pnpm run auth -- --relogin
+pnpm run auth -- --remove
 ```
 
 When adding an account, Chromium will open. Log in to Qwen Chat, then return to the terminal — the token will be saved in `session/`.
@@ -121,7 +122,7 @@ curl http://localhost:3264/api/models
 Update the model list from Qwen Chat metadata:
 
 ```bash
-npm run models:sync
+pnpm run models:sync
 ```
 
 Detailed report: [docs/QWEN_CHAT_MODELS.md](docs/QWEN_CHAT_MODELS.md)
@@ -157,6 +158,22 @@ const response = await openai.chat.completions.create({
 
 console.log(response.choices[0].message.content);
 ```
+
+## Claude Code (Anthropic Messages)
+
+Claude Code speaks the Anthropic format natively. Point `ANTHROPIC_BASE_URL`
+at the proxy — the built-in shim (`/api/v1/messages`) translates to Qwen and
+back, including streaming and `tool_use` blocks:
+
+```bash
+export ANTHROPIC_BASE_URL=http://127.0.0.1:3264/api
+export ANTHROPIC_AUTH_TOKEN=dummy
+export ANTHROPIC_MODEL=qwen3.7-max
+claude
+```
+
+The same endpoint works for any Anthropic SDK client. Tool calling through the
+shim is covered in [docs/TOOL_CALLING.md](docs/TOOL_CALLING.md).
 
 ## Image generation through Qwen Chat
 
@@ -297,7 +314,17 @@ OpenCode (`opencode.json`):
 }
 ```
 
-Claude Code speaks the Anthropic format, so a bridge is needed — LiteLLM:
+Claude Code speaks the Anthropic format — the proxy's built-in `/api/v1/messages`
+shim translates directly, no bridge needed:
+
+```bash
+export ANTHROPIC_BASE_URL=http://127.0.0.1:3264/api
+export ANTHROPIC_AUTH_TOKEN=dummy
+export ANTHROPIC_MODEL=qwen3.7-max
+claude
+```
+
+If you prefer a bridge (LiteLLM), it still works:
 
 ```yaml
 model_list:
@@ -318,37 +345,6 @@ Full guide with all clients, variables and verification:
 Ready examples: [examples/hermes/config-snippet.yaml](examples/hermes/config-snippet.yaml),
 [examples/litellm/qwen_litellm.yaml](examples/litellm/qwen_litellm.yaml).
 
-## Docker
-
-First add an account locally, because inside the container there is no GUI for login:
-
-```bash
-npm run auth
-```
-
-Then:
-
-```bash
-docker compose up --build -d
-```
-
-In `docker-compose.yml` it is important to mount `session/`:
-
-```yaml
-services:
-  qwen-proxy:
-    build: .
-    environment:
-      - SKIP_ACCOUNT_MENU=true
-      - PORT=3264
-    ports:
-      - "3264:3264"
-    volumes:
-      - ./session:/app/session
-      - ./logs:/app/logs
-      - ./uploads:/app/uploads
-```
-
 ## Recommended models
 
 - **Regular chat / agents**: `qwen3.7-max`
@@ -360,10 +356,11 @@ services:
 ## Useful commands
 
 ```bash
-npm run auth                  # account management
-npm run models:sync           # update model list
-npm run smoke                 # quick API check
-SKIP_ACCOUNT_MENU=true npm start
+pnpm run auth                  # account management
+pnpm run models:sync           # update model list
+pnpm run smoke                 # quick API check
+pnpm run smoke:media           # image/video generation check
+SKIP_ACCOUNT_MENU=true pnpm start
 ```
 
 Manual checks:
@@ -379,8 +376,8 @@ curl http://localhost:3264/api/videos/status
 ## Development
 
 ```bash
-npm test          # vitest
-npm run lint      # eslint
+pnpm test          # vitest
+pnpm run lint      # eslint
 ```
 
 Project structure — three layers, dependencies point inward:
@@ -400,6 +397,7 @@ More details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 - [docs/TOOL_CALLING.md](docs/TOOL_CALLING.md) — tool calling and agent setup.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — project structure.
+- [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) — planned and implemented improvements.
 - [docs/FORK_DEMO_QUICKSTART.md](docs/FORK_DEMO_QUICKSTART.md) — quick scenario for demo/video.
 - [docs/QWEN_CHAT_MODELS.md](docs/QWEN_CHAT_MODELS.md) — Qwen Chat model synchronization report.
 - [IMAGE_VIDEO_GENERATION_GUIDE.md](IMAGE_VIDEO_GENERATION_GUIDE.md) — image and video generation via `chatType`.
@@ -412,7 +410,7 @@ More details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 - This is an unofficial browser-based proxy; Qwen may change the internal API.
 - Qwen Chat accounts may hit limits; use multiple accounts for round-robin.
-- Tokens expire — use `npm run auth -- --relogin`.
+- Tokens expire — use `pnpm run auth -- --relogin`.
 - Photo/video generation depends on the availability of Qwen Chat features on a particular account.
 - Generated media URLs may be temporary.
 - Use cautiously in production: this is a tool for experiments, demos and local workflows.
