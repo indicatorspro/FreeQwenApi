@@ -12,6 +12,19 @@ import { generateImage as generateImageViaDashScope } from '../core/dashscope/im
 /** Qwen Chat model that handles media generation. */
 export const CHAT_MEDIA_MODEL = 'qwen3-vl-plus';
 
+/**
+ * Models that are generation-specific (not chat models).
+ * When one of these is requested, the chat model stays as CHAT_MEDIA_MODEL
+ * and the generation model is passed separately in the payload.
+ */
+const MEDIA_GENERATION_MODELS = new Set([
+    // Image generation models
+    'qwen-image-max', 'qwen-image-plus', 'qwen-image',
+    'wan2.6-t2i', 'wan2.5-t2i-preview', 'wan2.2-t2i-flash',
+    // Video generation models
+    'wan2.6-t2v', 'wan2.5-t2v-preview', 'wan2.2-t2v-flash'
+]);
+
 const ASPECT_RATIO_BY_SIZE = {
     '1024x1024': '1:1',
     '512x512': '1:1',
@@ -83,13 +96,19 @@ export async function generateImage({
         return buildImageResponse({ imageUrl: result.imageUrl, prompt, model: imageModel, raw: result, provider: 'dashscope' });
     }
 
-    const chatModel = mapModel(model || CHAT_MEDIA_MODEL);
+    // Separate chat model from generation model
+    const generationModel = model && MEDIA_GENERATION_MODELS.has(model) ? model : null;
+    const chatModel = generationModel ? CHAT_MEDIA_MODEL : mapModel(model || CHAT_MEDIA_MODEL);
+
+    logInfo(`Image generation: chatModel=${chatModel}, generationModel=${generationModel || 'default'}`);
+
     const result = await sendMessage({
         message: prompt,
         model: chatModel,
         chatType: CHAT_TYPES.IMAGE,
         size: normalizeAspectRatio(size, aspectRatio || '16:9'),
-        waitForCompletion: true
+        waitForCompletion: true,
+        generationModel
     });
 
     if (result.error) {
@@ -103,7 +122,7 @@ export async function generateImage({
     }
 
     logInfo(`Image generated: ${imageUrl}`);
-    return buildImageResponse({ imageUrl, prompt, model: chatModel, raw: result });
+    return buildImageResponse({ imageUrl, prompt, model: generationModel || chatModel, raw: result });
 }
 
 function buildImageResponse({ imageUrl, prompt, model, raw, provider = 'qwen-chat' }) {
@@ -126,14 +145,19 @@ function buildImageResponse({ imageUrl, prompt, model, raw, provider = 'qwen-cha
  * @param {boolean} [options.waitForCompletion]
  */
 export async function generateVideo({ prompt, model, size = null, aspectRatio = null, waitForCompletion = true }) {
-    const chatModel = mapModel(model || CHAT_MEDIA_MODEL);
+    // Separate chat model from generation model
+    const generationModel = model && MEDIA_GENERATION_MODELS.has(model) ? model : null;
+    const chatModel = generationModel ? CHAT_MEDIA_MODEL : mapModel(model || CHAT_MEDIA_MODEL);
+
+    logInfo(`Video generation: chatModel=${chatModel}, generationModel=${generationModel || 'default'}`);
 
     const result = await sendMessage({
         message: prompt,
         model: chatModel,
         chatType: CHAT_TYPES.VIDEO,
         size: normalizeAspectRatio(size, aspectRatio || '16:9'),
-        waitForCompletion
+        waitForCompletion,
+        generationModel
     });
 
     if (result.error) {
@@ -149,7 +173,7 @@ export async function generateVideo({ prompt, model, size = null, aspectRatio = 
         object: videoUrl ? 'video.generation' : 'video.generation.task',
         created: unixSeconds(),
         provider: 'qwen-chat',
-        model: chatModel,
+        model: generationModel || chatModel,
         prompt,
         status: videoUrl ? 'completed' : (result.status || 'processing'),
         task_id: result.task_id || result.id || null,

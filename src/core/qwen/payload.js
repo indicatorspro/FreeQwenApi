@@ -109,6 +109,7 @@ export function validateMessageContent(message) {
  * @param {string|null} params.size — image/video size
  * @param {boolean} params.stream
  * @param {Array} params.files — uploaded file references
+ * @param {string|null} params.generationModel — specific generation model (e.g., wan2.6-t2i)
  * @returns {object}
  */
 export function buildChatPayload({
@@ -120,7 +121,8 @@ export function buildChatPayload({
     chatType = CHAT_TYPES.TEXT,
     size = null,
     stream = true,
-    files = null
+    files = null,
+    generationModel = null
 }) {
     const messages = [];
 
@@ -145,6 +147,11 @@ export function buildChatPayload({
         extra: { meta: { subChatType: chatType } },
         feature_config: buildFeatureConfig({ model, chatType })
     };
+
+    // If a specific generation model is provided (e.g., wan2.6-t2i), add it to extra
+    if (generationModel && (chatType === CHAT_TYPES.IMAGE || chatType === CHAT_TYPES.VIDEO)) {
+        userMessage.extra.generation_model = generationModel;
+    }
 
     messages.push(userMessage);
 

@@ -329,7 +329,8 @@ export async function sendMessage(options) {
         size = null,
         waitForCompletion = true,
         onChunk = null,
-        retryCount = 0
+        retryCount = 0,
+        generationModel = null
     } = options;
 
     const context = getBrowserContext();
@@ -527,7 +528,8 @@ export async function sendMessage(options) {
             files,
             systemMessage,
             chatType,
-            size
+            size,
+            generationModel
         });
 
         logInfo('Sending request to Qwen API v2…');
@@ -619,7 +621,7 @@ export async function getTaskStatus(taskId, waitForCompletion = false) {
     return withPage(context, async (page) => {
         const result = waitForCompletion
             ? await pollTaskStatus({ page, taskId, token: account.token })
-            : await pollTaskStatus({ page, taskId, token: account.token, maxAttempts: 1, interval: 0 });
+            : await pollTaskStatus({ page, taskId, token: account.token, maxAttempts: 5, interval: 2000 });
 
         const payload = result.data || result;
         const videoUrl = extractMediaUrl(payload, 'video');

@@ -470,27 +470,42 @@ function enrichWithAntiBotInfo(result) {
 export async function executeChatRequest({ page, url, payload, token, onChunk = null }) {
     const useNodeFirst = config.network.nodeFetchFirst;
     const wantsStreaming = payload.stream !== false && typeof onChunk === 'function';
+    const NODE_RETRIES = 2; // extra attempts after the first (WAF is intermittent)
+    const RETRY_DELAY_MS = 1000;
+
+    /** Tries node path with retries. Returns result or null if all WAF-blocked. */
+    async function tryNodeWithRetry() {
+        for (let attempt = 0; attempt <= NODE_RETRIES; attempt++) {
+            if (attempt > 0) {
+                logDebug(`Node retry ${attempt}/${NODE_RETRIES} after ${RETRY_DELAY_MS}ms`);
+                await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
+            }
+            const nodeResult = await requestViaNode({ url, payload, token, onChunk });
+
+            if (!isWafBlocked(nodeResult)) {
+                const conclusive = nodeResult.ok
+                    || Boolean(nodeResult.status)
+                    || Boolean(nodeResult.errorBody)
+                    || nodeResult.streamed === true;
+                if (conclusive) return enrichWithAntiBotInfo(nodeResult);
+            } else {
+                const diagnostic = formatDiagnostic({
+                    status: nodeResult.status,
+                    antiBot: isAntiBotChallenge(String(nodeResult.errorBody || '')),
+                    html: isHtmlResponse(String(nodeResult.errorBody || ''))
+                });
+                logDebug(`WAF blocked node attempt ${attempt + 1}/${NODE_RETRIES + 1} (${diagnostic})`);
+            }
+        }
+        return null; // all attempts WAF-blocked
+    }
 
     // Streaming: always try Node.js first (Heymoma behavior).
     if (wantsStreaming) {
-        const nodeResult = await requestViaNode({ url, payload, token, onChunk });
+        const nodeResult = await tryNodeWithRetry();
+        if (nodeResult) return nodeResult;
 
-        if (!isWafBlocked(nodeResult)) {
-            const conclusive = nodeResult.ok
-                || Boolean(nodeResult.status)
-                || Boolean(nodeResult.errorBody)
-                || nodeResult.streamed === true;
-            if (conclusive) return enrichWithAntiBotInfo(nodeResult);
-        } else {
-            const diagnostic = formatDiagnostic({
-                status: nodeResult.status,
-                antiBot: isAntiBotChallenge(String(nodeResult.errorBody || '')),
-                html: isHtmlResponse(String(nodeResult.errorBody || ''))
-            });
-            logDebug(`WAF blocked node streaming (${diagnostic}), switching to browser`);
-        }
-
-        logWarn(`Node streaming failed (${nodeResult.error || 'unknown error'}), fallback to browser`);
+        logWarn(`Node streaming failed after ${NODE_RETRIES + 1} attempts, fallback to browser`);
         const browserResult = await requestViaBrowser({ page, url, payload, token, onChunk });
         return enrichWithAntiBotInfo(browserResult);
     }
@@ -501,25 +516,11 @@ export async function executeChatRequest({ page, url, payload, token, onChunk = 
         return enrichWithAntiBotInfo(result);
     }
 
-    // Node-first for non-streaming: try fast path, on WAF fallback to browser.
-    const nodeResult = await requestViaNode({ url, payload, token, onChunk });
+    // Node-first for non-streaming: try fast path with retries, on WAF fallback to browser.
+    const nodeResult = await tryNodeWithRetry();
+    if (nodeResult) return nodeResult;
 
-    if (!isWafBlocked(nodeResult)) {
-        const conclusive = nodeResult.ok
-            || Boolean(nodeResult.status)
-            || Boolean(nodeResult.errorBody)
-            || nodeResult.streamed === true;
-        if (conclusive) return enrichWithAntiBotInfo(nodeResult);
-    } else {
-        const diagnostic = formatDiagnostic({
-            status: nodeResult.status,
-            antiBot: isAntiBotChallenge(String(nodeResult.errorBody || '')),
-            html: isHtmlResponse(String(nodeResult.errorBody || ''))
-        });
-        logDebug(`WAF blocked node request (${diagnostic}), switching to browser`);
-    }
-
-    logWarn(`Node request failed (${nodeResult.error || 'unknown error'}), fallback to browser`);
+    logWarn(`Node request failed after ${NODE_RETRIES + 1} attempts, fallback to browser`);
     const browserResult = await requestViaBrowser({ page, url, payload, token, onChunk });
     return enrichWithAntiBotInfo(browserResult);
 }
