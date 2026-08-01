@@ -66,6 +66,8 @@ export PORT=3264 DEFAULT_MODEL=qwen3.7-max   # bash
 $env:PORT=3264; pnpm start                   # PowerShell
 ```
 
+**Recommended:** set `QWEN_NODE_FETCH_FIRST=true` (default in `.env.example`). This routes API requests through Node.js `fetch` first, falling back to the browser only if blocked by WAF. Without it, every request goes through the browser path which is slower and less reliable.
+
 ## Qwen Chat authentication
 
 Add an account:
@@ -109,7 +111,7 @@ The response contains the number of models and accounts:
   "ok": true,
   "service": "FreeQwenApi",
   "baseUrl": "/api",
-  "models": 28
+  "models": 29
 }
 ```
 
@@ -405,6 +407,23 @@ More details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 - [docs/OPENWEBUI_SETUP.md](docs/OPENWEBUI_SETUP.md) — connecting Open WebUI.
 - [examples/hermes/config-snippet.yaml](examples/hermes/config-snippet.yaml) — Hermes Agent provider.
 - [examples/litellm/qwen_litellm.yaml](examples/litellm/qwen_litellm.yaml) — LiteLLM bridge.
+
+## Troubleshooting
+
+**WAF blocks / intermittent `Bad_Request`:**
+Qwen's Aliyun WAF may intermittently block Node.js requests (returns an HTML challenge page instead of JSON). With `QWEN_NODE_FETCH_FIRST=true`, the proxy automatically falls back to the browser path. If you see frequent WAF blocks, try:
+- Restarting the server (resets browser session state)
+- Re-authenticating: `pnpm run auth -- --relogin`
+- Using multiple accounts for rotation
+
+**Image generation returns empty content:**
+Image URLs arrive in trailing SSE chunks after the main response finishes. The proxy handles this automatically via raw chunk preservation. If it fails, check `logs/raw-responses1.log` for the full SSE stream.
+
+**Video generation "Task not found":**
+Video uses `stream: false` + task polling (not SSE). If polling fails, ensure your account has video generation enabled on Qwen Chat.
+
+**Browser page shows "Log in / Sign up":**
+The browser session lost authentication. Run `pnpm run auth -- --relogin` to refresh tokens.
 
 ## Limitations
 
