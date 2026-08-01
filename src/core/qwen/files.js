@@ -6,11 +6,13 @@ import fs from 'fs';
 import path from 'path';
 
 import { config } from '../../config/index.js';
-import { logError, logInfo } from '../../shared/logger.js';
+import { logError, logInfo, logDebug } from '../../shared/logger.js';
 import { getBrowserContext } from '../../browser/browser.js';
 import { withPage } from './pagePool.js';
 import { postViaBrowser } from './transport.js';
 import { resolveAccount } from './tokens.js';
+import { bindResourceToAccount } from '../accounts/affinity.js';
+import { affinityRegistry } from '../accounts/affinityRegistry.js';
 
 const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'];
 const DOCUMENT_EXTENSIONS = ['.pdf', '.doc', '.docx', '.txt'];
@@ -141,6 +143,18 @@ export async function uploadFileToQwen(filePath) {
 
         const stsData = await getStsToken(fileInfo);
         const uploaded = await uploadFile(filePath, stsData);
+
+        // Keep the file on the account that uploaded it, so chat requests
+        // using the same file resolve to the correct account.
+        if (uploaded.fileId || stsData.file_id) {
+            const account = await resolveAccount(requireContext());
+            if (account?.id) {
+                const fileId = uploaded.fileId || stsData.file_id;
+                bindResourceToAccount(affinityRegistry, 'file', fileId, account.id);
+                logDebug(`Affinity bind: file ${fileId} → account ${account.id}`);
+            }
+        }
+
         return { ...uploaded, fileInfo, stsData };
     } catch (error) {
         logError(`File upload error: ${error.message}`, error);

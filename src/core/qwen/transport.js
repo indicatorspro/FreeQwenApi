@@ -17,6 +17,7 @@ import { logDebug, logWarn } from '../../shared/logger.js';
 import { randomHex } from '../../shared/ids.js';
 import { SseAccumulator, parseNonSseBody } from './sse.js';
 import { isAntiBotChallenge, isHtmlResponse, classifyBlockedResponse, formatDiagnostic } from './antibot.js';
+import { SOURCE_HEADER } from './protocol.js';
 
 /**
  * @typedef {object} TransportResult
@@ -33,7 +34,7 @@ import { isAntiBotChallenge, isHtmlResponse, classifyBlockedResponse, formatDiag
  */
 
 /** Code executed inside browser page. Must be self-contained. */
-async function inPageRequest({ url, payload, headers = {}, token, bindingName }) {
+async function inPageRequest({ url, payload, headers = {}, token, bindingName, sourceHeader }) {
     try {
         if (!token) return { ok: false, error: 'Authorization token not found' };
 
@@ -46,7 +47,7 @@ async function inPageRequest({ url, payload, headers = {}, token, bindingName })
                 Authorization: `Bearer ${token}`,
                 'X-Accel-Buffering': 'no',
                 'X-Request-Id': crypto.randomUUID(),
-                'source': 'web',
+                'source': sourceHeader,
                 ...headers
             },
             body: JSON.stringify(payload)
@@ -302,7 +303,7 @@ export async function requestViaBrowser({ page, url, payload, token, onChunk = n
         let result;
         try {
             result = await withTimeout(
-                page.evaluate(inPageRequest, { url, payload: body, headers: payloadHeaders, token, bindingName }),
+                page.evaluate(inPageRequest, { url, payload: body, headers: payloadHeaders, token, bindingName, sourceHeader: SOURCE_HEADER }),
                 config.timeouts.browserFetch,
                 'browser page request timed out'
             );
@@ -472,7 +473,7 @@ export async function postViaBrowser({ page, url, payload, token }) {
                         Authorization: `Bearer ${data.token}`,
                         'X-Accel-Buffering': 'no',
                         'X-Request-Id': crypto.randomUUID(),
-                        'source': 'web'
+                        'source': data.sourceHeader
                     },
                     body: JSON.stringify(data.payload)
                 });
@@ -481,7 +482,7 @@ export async function postViaBrowser({ page, url, payload, token }) {
             } catch (error) {
                 return { ok: false, error: String(error) };
             }
-        }, { url, payload, token });
+        }, { url, payload, token, sourceHeader: SOURCE_HEADER });
 
         logDebug(`postViaBrowser: completed, ok=${result.ok}`);
         return result;

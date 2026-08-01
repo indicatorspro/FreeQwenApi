@@ -99,7 +99,14 @@ describe('resolveConversation', () => {
 
     it('builds a stable key if no session exists yet', () => {
         const result = resolveConversation({ messages, conversationHint: 'conv-new', sessionKey: 'client-1' });
-        expect(result.chatId).toBe(buildChatKeyFromHint('conv-new'));
+        expect(result.chatId).toBe(buildChatKeyFromHint('conv-new', 'client-1'));
+    });
+
+    it('scopes the built key by client so clients do not collide', () => {
+        const resultA = resolveConversation({ messages, conversationHint: 'conv-new', sessionKey: 'client-A' });
+        const resultB = resolveConversation({ messages, conversationHint: 'conv-new', sessionKey: 'client-B' });
+        expect(resultA.chatId).not.toBe(resultB.chatId);
+        expect(resultA.chatId).toMatch(/^chat_/);
     });
 
     it('ignores the saved session when a new chat is requested', () => {

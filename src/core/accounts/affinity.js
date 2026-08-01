@@ -1,13 +1,16 @@
-// Account Affinity: binds chatId → accountId to prevent "chat is not exist".
+// Account Affinity: binds resource (chat/file/task) → accountId to prevent
+// "chat is not exist" and to keep file uploads and generation tasks on the
+// same account as their chat.
 //
 // Problem: with round-robin account rotation, a chat created by account A may
-// be accessed by account B on next request → Qwen returns error.
+// be accessed by account B on next request → Qwen returns error. Same applies
+// to files uploaded under one account and tasks started under another.
 //
-// Solution: LRU registry that binds resourceId (chatId) → accountId.
-// If bound account is still available, use it; otherwise select new one
-// and reset chatId (old chat doesn't exist under new token).
+// Solution: LRU registry that binds resourceId → accountId. If bound account is
+// still available, use it; otherwise select new one and reset the resource
+// (old chat/file doesn't exist under new token).
 //
-// Source: FreeQwenApi_ForgetMeAI (accountAffinity.js).
+// Source: FreeQwenApi_ForgetMeAI (accountAffinity.js, chat.js:517-645).
 
 import { logDebug } from '../../shared/logger.js';
 
@@ -15,6 +18,107 @@ function normalizeIdentifier(value) {
     if (value === null || value === undefined) return null;
     const normalized = String(value).trim();
     return normalized || null;
+}
+
+/**
+ * Builds a namespaced registry key for a resource.
+ * Files and tasks are additionally scoped by client so two clients uploading
+ * the same file id cannot collide; chats are not scoped (they are already
+ * client-scoped upstream via identity.js).
+ */
+export function buildResourceKey(resourceType, resourceId, clientScope = null) {
+    const normalizedType = normalizeIdentifier(resourceType);
+    const normalizedId = normalizeIdentifier(resourceId);
+    if (!normalizedType || !normalizedId) return null;
+
+    if (normalizedType === 'file' || normalizedType === 'task') {
+        const normalizedScope = normalizeIdentifier(clientScope) || 'unscoped';
+        return `${normalizedType}:${normalizedScope}:${normalizedId}`;
+    }
+    return `${normalizedType}:${normalizedId}`;
+}
+
+/**
+ * Binds resource → account in a registry, namespaced by type/scope.
+ * @returns {boolean}
+ */
+export function bindResourceToAccount(registry, resourceType, resourceId, accountId, clientScope = null) {
+    if (!registry || typeof registry.bind !== 'function') return false;
+    const key = buildResourceKey(resourceType, resourceId, clientScope);
+    if (!key || !normalizeIdentifier(accountId)) return false;
+    return registry.bind(key, accountId);
+}
+
+/** Returns accountId bound to a resource (type+scope namespaced). */
+export function getResourceAccountId(registry, resourceType, resourceId, clientScope = null) {
+    if (!registry || typeof registry.get !== 'function') return null;
+    const key = buildResourceKey(resourceType, resourceId, clientScope);
+    return key ? registry.get(key) : null;
+}
+
+/** Collects file resource ids from an array of file entries (any shape). */
+export function collectFileResourceIds(files) {
+    if (!Array.isArray(files)) return [];
+    const ids = new Set();
+    const keys = new Set(['id', 'file', 'input_file', 'file_id', 'fileId', 'file_path', 'filePath', 'file_url', 'url']);
+    const seen = new WeakSet();
+
+    function collect(value) {
+        if (typeof value === 'string' && value.trim()) {
+            ids.add(value.trim());
+            return;
+        }
+        if (!value || typeof value !== 'object' || seen.has(value)) return;
+        seen.add(value);
+        if (Array.isArray(value)) {
+            for (const item of value) collect(item);
+            return;
+        }
+        for (const [key, child] of Object.entries(value)) {
+            if (keys.has(key)) collect(child);
+        }
+    }
+
+    for (const file of files) collect(file);
+    return [...ids];
+}
+
+/**
+ * Resolves the account that owns a set of files.
+ * @returns {{accountId: string|null, hasFiles: boolean, hasKnownOwner: boolean, resourceIds: string[]}}
+ *   — error set when files belong to different accounts.
+ */
+export function resolveFileAccountId(registry, files, clientScope = null) {
+    const resourceIds = collectFileResourceIds(files);
+    const accountIds = new Set();
+    const hasFiles = Array.isArray(files) && files.length > 0;
+    let allFilesHaveKnownOwner = hasFiles && resourceIds.length > 0;
+
+    for (const resourceId of resourceIds) {
+        const accountId = getResourceAccountId(registry, 'file', resourceId, clientScope);
+        if (!accountId) {
+            allFilesHaveKnownOwner = false;
+            continue;
+        }
+        accountIds.add(accountId);
+    }
+
+    if (accountIds.size > 1) {
+        return {
+            error: 'Files belong to different Qwen accounts; re-upload them with a single account',
+            accountId: null,
+            hasFiles,
+            hasKnownOwner: false,
+            resourceIds
+        };
+    }
+
+    return {
+        accountId: accountIds.values().next().value || null,
+        hasFiles,
+        hasKnownOwner: accountIds.size === 1 && allFilesHaveKnownOwner,
+        resourceIds
+    };
 }
 
 /**
@@ -90,6 +194,27 @@ export function createAccountAffinityRegistry({ maxEntries = 10_000 } = {}) {
         /** Number of active bindings. */
         get size() {
             return accountByResource.size;
+        },
+
+        /** Snapshot of all bindings for persistence: Array<[resourceId, accountId]>. */
+        dump() {
+            return [...accountByResource.entries()];
+        },
+
+        /**
+         * Replaces all bindings with persisted entries.
+         * Invalid entries (empty id/account) are skipped.
+         * @param {Array<[string, string]>} entries
+         */
+        restore(entries) {
+            if (!Array.isArray(entries)) return;
+            accountByResource.clear();
+            for (const [resourceId, accountId] of entries) {
+                const normalizedResourceId = normalizeIdentifier(resourceId);
+                const normalizedAccountId = normalizeIdentifier(accountId);
+                if (!normalizedResourceId || !normalizedAccountId) continue;
+                accountByResource.set(normalizedResourceId, normalizedAccountId);
+            }
         }
     });
 }

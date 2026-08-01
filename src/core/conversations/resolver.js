@@ -6,9 +6,10 @@
 // to the main chat, otherwise they pollute the history.
 
 import { config } from '../../config/index.js';
-import { normalizeId, pickFirstId, randomHex, shortHash } from '../../shared/ids.js';
+import { normalizeId, pickFirstId, randomHex } from '../../shared/ids.js';
 import { logDebug, logInfo } from '../../shared/logger.js';
 import { getSession } from './store.js';
+import { createScopedConversationAlias } from './identity.js';
 
 /** OpenWebUI service request (chat title, tags, autocomplete). */
 export function isMetaRequest(messages) {
@@ -81,14 +82,15 @@ export function shouldForceNewChat({ body = {}, headers = {} }) {
 }
 
 /** Stable internal chat key derived from the client's conversation identifier. */
-export function buildChatKeyFromHint(hint) {
+export function buildChatKeyFromHint(hint, clientScope = null) {
     const normalized = normalizeId(hint);
     if (!normalized) return null;
-    return `chat_${shortHash(`client-conversation:${normalized}`)}`;
+    if (clientScope) return createScopedConversationAlias(normalized, clientScope);
+    return `chat_${createScopedConversationAlias(normalized, 'public')}`;
 }
 
 /** Stable key based on the first user message (legacy mode). */
-export function buildChatKeyFromHistory(messages) {
+export function buildChatKeyFromHistory(messages, clientScope = null) {
     if (!Array.isArray(messages) || messages.length === 0) return null;
 
     // OpenWebUI service requests must not affect the key.
@@ -105,7 +107,9 @@ export function buildChatKeyFromHistory(messages) {
         .map(message => (typeof message.content === 'string' ? message.content : JSON.stringify(message.content)))
         .join('||');
 
-    return firstUser ? `chat_${shortHash(firstUser)}` : null;
+    if (!firstUser) return null;
+    if (clientScope) return createScopedConversationAlias(firstUser, clientScope, 'client-history');
+    return `chat_${createScopedConversationAlias(firstUser, 'public', 'client-history')}`;
 }
 
 /**
@@ -157,7 +161,7 @@ export function resolveConversation({
             if (!effectiveParentId) effectiveParentId = saved.parentId;
             logInfo(`Chat restored by conversation_id: ${chatId}`);
         } else {
-            chatId = buildChatKeyFromHint(conversationHint);
+            chatId = buildChatKeyFromHint(conversationHint, sessionKey);
             logInfo(`Chat key built from client conversation_id: ${chatId}`);
         }
     } else if (!chatId && config.server.allowUnscopedSessionRestore) {
@@ -169,7 +173,7 @@ export function resolveConversation({
             if (!effectiveParentId) effectiveParentId = saved.parentId;
             logInfo(`Chat restored from session: ${chatId}`);
         } else {
-            chatId = buildChatKeyFromHistory(messages);
+            chatId = buildChatKeyFromHistory(messages, sessionKey);
             if (chatId) logInfo(`Chat key built from history: ${chatId}`);
         }
     } else if (!chatId) {

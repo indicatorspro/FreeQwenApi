@@ -5,12 +5,13 @@
 
 import { config } from '../../config/index.js';
 import { logDebug } from '../../shared/logger.js';
+import { createConversationIdentityRegistry } from './identity.js';
 
 /** session-key -> { chatId, parentId, scope, timestamp } */
 const sessions = new Map();
 
-/** generated chat_xxx -> real Qwen chatId */
-const chatIdAliases = new Map();
+/** generated chat_xxx -> real Qwen chatId (CAS registry, anti-stale) */
+const chatIdentity = createConversationIdentityRegistry();
 
 const CLEANUP_INTERVAL_MS = 600_000;
 
@@ -34,12 +35,12 @@ export function saveSession(key, { chatId, parentId, scope = null }) {
 
 export function mapChatId(alias, qwenChatId) {
     if (!alias || !qwenChatId) return;
-    chatIdAliases.set(alias, qwenChatId);
+    chatIdentity.map(alias, qwenChatId);
     logDebug(`Chat alias: ${alias} → ${qwenChatId}`);
 }
 
 export function resolveChatIdAlias(alias) {
-    return alias ? chatIdAliases.get(alias) || null : null;
+    return alias ? chatIdentity.resolve(alias) || null : null;
 }
 
 /** Removes expired sessions. Returns count of removed. */
@@ -76,5 +77,5 @@ export function stopSessionCleanup() {
 /** Tests only: completely clears the state. */
 export function resetConversationState() {
     sessions.clear();
-    chatIdAliases.clear();
+    chatIdentity.clear();
 }

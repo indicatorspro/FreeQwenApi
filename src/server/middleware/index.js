@@ -1,11 +1,11 @@
 // HTTP layer middleware.
 
-import { shortHash } from '../../shared/ids.js';
 import { logError, logWarn } from '../../shared/logger.js';
 import { getApiKeys } from '../../core/apiKeys.js';
 import { AppError } from '../../shared/errors.js';
 import { isOriginAllowed, normalizeOrigin } from '../../shared/originPolicy.js';
 import { matchesAnyCredential, fingerprintCredential } from '../../shared/security.js';
+import { createClientScope } from '../../core/conversations/identity.js';
 
 /** Proxy access key check. Empty key list disables check. */
 export function apiKeyAuth(req, res, next) {
@@ -135,9 +135,18 @@ export function notFoundHandler(req, res) {
 /**
  * Builds a stable client key from request metadata.
  * Used to bind conversations to a client when no explicit ID is supplied.
+ *
+ * The key is a scoped hash of IP + User-Agent + API-key fingerprint, so two
+ * clients sharing an address (or a key) still get deterministic, isolated
+ * aliases — preventing cross-client chat collisions.
  */
 export function clientKey(req) {
     const ip = req.socket?.remoteAddress || '';
     const userAgent = req.get('user-agent') || '';
-    return shortHash(`${ip}|${userAgent}`);
+
+    const header = req.headers.authorization || '';
+    const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
+    const credentialFingerprint = token ? fingerprintCredential(token) : null;
+
+    return createClientScope({ ip, userAgent, credentialFingerprint });
 }

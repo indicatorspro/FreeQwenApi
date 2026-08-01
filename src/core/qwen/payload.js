@@ -8,6 +8,7 @@
 // Stateless mode: no chat_id/parent_id for one-shot requests.
 
 import { uuid, unixSeconds } from '../../shared/ids.js';
+import { CHAT_MODE, INCREMENTAL_OUTPUT, OUTPUT_SCHEMA, QWEN_WEB_VERSION } from './protocol.js';
 
 /** Chat types supported by Qwen. */
 export const CHAT_TYPES = Object.freeze({
@@ -44,7 +45,7 @@ export function isThinkingLocked(model) {
 export function buildFeatureConfig({ model, chatType }) {
     const featureConfig = {
         thinking_enabled: isThinkingLocked(model) || chatType === CHAT_TYPES.VIDEO,
-        output_schema: 'phase'
+        output_schema: OUTPUT_SCHEMA
     };
 
     if (chatType === CHAT_TYPES.VIDEO) {
@@ -149,12 +150,12 @@ export function buildChatPayload({
 
     const payload = {
         stream,
-        version: '2.1',
-        incremental_output: true,
+        version: QWEN_WEB_VERSION,
+        incremental_output: INCREMENTAL_OUTPUT,
         chatId,
         parentId: parentId || '',
         chat_id: chatId,
-        chat_mode: 'normal',
+        chat_mode: CHAT_MODE,
         messages,
         model,
         parent_id: parentId || null,

@@ -94,7 +94,12 @@ export const config = Object.freeze({
         // Legacy mode: restore chat by IP+User-Agent, without conversation_id.
         allowUnscopedSessionRestore: toBoolean(env.ALLOW_UNSCOPED_SESSION_CHAT_RESTORE),
         skipAccountMenu: toBoolean(env.SKIP_ACCOUNT_MENU) || toBoolean(env.NON_INTERACTIVE),
-        sessionTtlMs: toInt(env.SESSION_TTL_MS, 3_600_000, { min: 60_000, name: 'SESSION_TTL_MS' })
+        sessionTtlMs: toInt(env.SESSION_TTL_MS, 3_600_000, { min: 60_000, name: 'SESSION_TTL_MS' }),
+        // Proxy-side rate limiting. Off by default: OpenWebUI may fire many
+        // parallel requests (title gen, message send), so keep it generous.
+        rateLimitEnabled: toBoolean(env.PROXY_RATE_LIMIT_ENABLED, false),
+        rateLimitWindowMs: toInt(env.PROXY_RATE_LIMIT_WINDOW_MS, 60_000, { min: 1_000, name: 'PROXY_RATE_LIMIT_WINDOW_MS' }),
+        rateLimitMax: toInt(env.PROXY_RATE_LIMIT_MAX, 60, { min: 1, name: 'PROXY_RATE_LIMIT_MAX' })
     }),
 
     qwen: Object.freeze({
@@ -106,6 +111,8 @@ export const config = Object.freeze({
         stsTokenUrl: env.STS_TOKEN_API_URL || `${qwenBaseUrl}/api/v1/files/getstsToken`,
         authSigninUrl: env.AUTH_SIGNIN_URL || `${qwenBaseUrl}/auth?action=signin`,
         ossSdkUrl: env.OSS_SDK_URL || 'https://gosspublic.alicdn.com/aliyun-oss-sdk-6.20.0.min.js',
+        // Qwen web protocol version used in chat payloads.
+        webVersion: env.QWEN_WEB_VERSION || '2.1',
         dashscopeApiKey: env.DASHSCOPE_API_KEY || null
     }),
 

@@ -4,6 +4,7 @@ import { config } from '../../config/index.js';
 import { delay } from '../../shared/async.js';
 import { logDebug, logError, logInfo, logWarn } from '../../shared/logger.js';
 import { CHAT_TYPES } from './payload.js';
+import { CHAT_MODE } from './protocol.js';
 import { postViaBrowser } from './transport.js';
 import { withPage } from './pagePool.js';
 
@@ -43,7 +44,7 @@ export async function createChat({
                 page,
                 url: config.qwen.createChatUrl,
                 token,
-                payload: { title, models: [model], chat_mode: 'normal', chat_type: chatType, timestamp: Date.now() }
+                payload: { title, models: [model], chat_mode: CHAT_MODE, chat_type: chatType, timestamp: Date.now() }
             });
             logDebug(`createChat: postViaBrowser returned ok=${res.ok}, status=${res.status || 'n/a'}`);
             return res;

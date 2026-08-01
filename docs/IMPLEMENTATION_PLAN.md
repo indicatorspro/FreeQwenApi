@@ -43,7 +43,7 @@ Legend: 🟢 easy · 🟡 medium · 🔴 complex
 
 ## Phase 2 — Integrations (high user value)
 
-### P2.1 — Anthropic shim `POST /api/messages`  🟡
+### P2.1 — Anthropic shim `POST /api/messages`  ✅
 **Source:** ForgetMeAI `routes.js:857,1320` (ready-made).
 - **Goal:** let Claude Code point `ANTHROPIC_BASE_URL` at our proxy.
 - **Action:** add `/api/messages` and `/api/v1/messages` routes that translate
@@ -54,8 +54,14 @@ Legend: 🟢 easy · 🟡 medium · 🔴 complex
   `src/server/routes/index.js`.
 - **Verify:** curl with an Anthropic-shaped request; compare with ForgetMeAI
   implementation for exact field names.
+- **Done:** `src/server/routes/messages.js` added with real streaming via
+  `runCompletion` (no loopback — the source's approach re-emitted fake chunks);
+  `openAIToAnthropicMessage` + `AnthropicStream` writer; registered in
+  `src/server/routes/index.js` (`/api/messages` and `/api/v1/messages`, the
+  latter via `stripVersionPrefix`). 5 new tests in
+  `tests/server/messages.test.js`; 131 total passing, lint clean.
 
-### P2.2 — Client scoping (isolate clients)  🟡
+### P2.2 — Client scoping (isolate clients)  ✅
 **Source:** ForgetMeAI `keyedQueue.js` (port the registry, skip the queue if unneeded).
 - **Goal:** each client (IP+UA+API-key fingerprint) gets deterministic
   `chat_<sha256>` aliases; prevents cross-client chat collisions and maps cleanly
@@ -65,8 +71,15 @@ Legend: 🟢 easy · 🟡 medium · 🔴 complex
 - **Files:** new `src/core/conversations/identity.js` (or extend `resolver.js`),
   unit tests.
 - **Verify:** two clients with same first message get different aliases.
+- **Done:** `src/core/conversations/identity.js` added — `createClientScope`,
+  `createScopedConversationAlias`, `createConversationIdentityRegistry` (CAS
+  `map`/`resolve`/`has`/`lockKey`/`clear`). `store.js` aliases now backed by the
+  registry (anti-stale). `clientKey(req)` in `middleware/index.js` now scopes by
+  IP+UA+API-key fingerprint. `resolver.js` builds scoped keys from
+  `buildChatKeyFromHint`/`buildChatKeyFromHistory`. 10 new tests in
+  `tests/core/identity.test.js`; 146 total passing, lint clean.
 
-### P2.3 — Multi-resource affinity (chat + file + task)  🟡
+### P2.3 — Multi-resource affinity (chat + file + task)  ✅
 **Source:** ForgetMeAI `chat.js:531-621`.
 - **Goal:** bind file uploads and generation tasks to the same account as their chat.
 - **Action:** extend `affinity.js` registry to key on resource type, and bind
@@ -74,12 +87,20 @@ Legend: 🟢 easy · 🟡 medium · 🔴 complex
 - **Files:** `src/core/accounts/affinity.js`, `src/core/qwen/files.js`,
   `src/services/media.js`.
 - **Verify:** unit tests for mixed chat+file+task bindings.
+- **Done:** `affinity.js` gained `buildResourceKey` (chat un-scoped; file/task
+  client-scoped), `bindResourceToAccount`, `getResourceAccountId`,
+  `collectFileResourceIds`, `resolveFileAccountId`. New shared singleton
+  `src/core/accounts/affinityRegistry.js` backs chat+file+task paths in
+  `client.js` (preflight + bind on send/task) and `files.js` (bind after
+  upload). `sendMessage` accepts `clientScope`, propagated from
+  `completions.js`. 11 new tests in `tests/core/affinity.test.js`; 157 total
+  passing, lint clean.
 
 ---
 
 ## Phase 3 — Hardening (our own improvements)
 
-### P3.1 — Proxy-side rate limiting  🟡
+### P3.1 — Proxy-side rate limiting  ✅
 **Problem:** no source protects the proxy itself; any client can abuse it.
 - **Action:** add `express-rate-limit` (or a lightweight in-memory limiter) keyed
   by IP+API key, with configurable window via env (`PROXY_RATE_LIMIT_WINDOW_MS`,
@@ -88,8 +109,13 @@ Legend: 🟢 easy · 🟡 medium · 🔴 complex
 - **Files:** `src/server/middleware/index.js`, `src/config/index.js`,
   `.env.example`.
 - **Verify:** burst test hits 429; normal traffic unaffected.
+- **Done:** `src/server/middleware/rateLimit.js` added — `createRateLimiter`
+  (sliding window, key IP+API key, `Retry-After`/`X-RateLimit-*` headers) and
+  `createRateLimitMiddleware`; registered in `app.js` on `/api` (off by default,
+  enabled via `PROXY_RATE_LIMIT_ENABLED`). 6 new tests in
+  `tests/server/rateLimit.test.js`; total passing, lint clean.
 
-### P3.2 — Move hardcoded Qwen protocol constants to config  🟢
+### P3.2 — Move hardcoded Qwen protocol constants to config  ✅
 **Problem:** `version: '2.1'`, `output_schema: 'phase'`, `X-Request-Id` header
 are scattered across `payload.js`/`transport.js`.
 - **Action:** centralize in `src/core/qwen/protocol.js` (or config) so a Qwen
@@ -98,20 +124,42 @@ are scattered across `payload.js`/`transport.js`.
 - **Files:** new `src/core/qwen/protocol.js`, update `payload.js`,
   `transport.js`, `config/index.js`, `.env.example`.
 - **Verify:** all payload tests still pass; runtime uses env override.
+- **Done:** `src/core/qwen/protocol.js` added — `QWEN_WEB_VERSION`
+  (config-driven, default `2.1`), `OUTPUT_SCHEMA`, `CHAT_MODE`,
+  `INCREMENTAL_OUTPUT`, `SOURCE_HEADER`. `payload.js` (`version`,
+  `output_schema`, `incremental_output`, `chat_mode`) and `chats.js`
+  (`chat_mode`) now read from protocol; `transport.js` passes `SOURCE_HEADER`
+  into browser-side fetches via `page.evaluate` args (serialized functions
+  cannot close over module constants). `QWEN_WEB_VERSION` added to
+  `config/index.js` + `.env.example`. All 163 tests passing, lint clean.
 
-### P3.3 — Persist affinity/session state  🟡
+### P3.3 — Persist affinity/session state  ✅
 **Problem:** affinity and session maps are in-memory; restart breaks continuity.
 - **Action:** persist chat→account bindings to `session/` JSON (versioned, like
   `tokens.json`), restore on boot. Keep sessions as-is or optionally persist too.
 - **Files:** `src/core/accounts/affinity.js`, `src/core/conversations/store.js`.
 - **Verify:** restart keeps an in-flight chat bound to the same account.
+- **Done:** `createAccountAffinityRegistry` gained `dump()`/`restore()`; new
+  `src/core/accounts/affinityPersistence.js` persists bindings to
+  `session/affinity.json` (`{ version: 1, bindings: [[key, accountId], …] }`).
+  The global `affinityRegistry` restores on boot and persists on mutation via a
+  1s debounce; `flushAffinityState()` flushes on graceful shutdown in
+  `src/server/start.js`. Sessions stay in-memory (their TTL makes persistence
+  low-value; chat identity is rebuilt deterministically). 4 new tests in
+  `tests/core/affinity.test.js`; 167 total passing, lint clean.
 
-### P3.4 — Smoke test for image/video generation  🟢
+### P3.4 — Smoke test for image/video generation  ✅
 **Problem:** we test chat thoroughly (121 tests) but media paths are manual.
 - **Action:** add `scripts/smoke_media_test.js` (t2i + t2v polling) and wire an npm
   script. Fail loudly with clear errors.
 - **Files:** new `scripts/smoke_media_test.js`, `package.json`.
 - **Verify:** script runs against a live account and reports URLs.
+- **Done:** `scripts/smoke_media_test.js` added — checks `/images/status` +
+  `/videos/status` availability, generates an image via `/images/generations`
+  and asserts a URL, starts a video via `/videos/generations` and polls
+  `/tasks/status/:taskId` until completion or timeout. Wired as
+  `npm run smoke:media`; prompts overridable via `QWEN_SMOKE_IMAGE_PROMPT` /
+  `QWEN_SMOKE_VIDEO_PROMPT`. Lint clean.
 
 ---
 
@@ -136,4 +184,4 @@ are scattered across `payload.js`/`transport.js`.
 5. P2.2 + P2.3 scoping/affinity → medium
 6. Phase 3 → ongoing hardening, can be scheduled after
 
-After each item: run `pnpm lint` + `pnpm test` (121 tests) and commit.
+After each item: run `pnpm lint` + `pnpm test` (167 tests) and commit.

@@ -161,6 +161,7 @@ export async function runCompletion(request, { onContent = null } = {}) {
         parentId: conversation.parentId,
         files: prepared.files,
         systemMessage: toolAwareSystem,
+        clientScope: clientKey,
         onChunk: handleChunk
     });
 

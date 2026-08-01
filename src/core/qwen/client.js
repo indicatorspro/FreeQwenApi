@@ -18,11 +18,8 @@ import { resolveAccount } from './tokens.js';
 import { isValidModel } from '../models/registry.js';
 import { preparePageForApi } from './baxia.js';
 import { isAntiBotChallenge } from './antibot.js';
-import { createAccountAffinityRegistry, snapshotAccountToken } from '../accounts/affinity.js';
-
-// Global affinity registry: chatId → accountId.
-// Prevents "chat is not exist" on account rotation.
-const affinityRegistry = createAccountAffinityRegistry({ maxEntries: 10_000 });
+import { snapshotAccountToken, resolveFileAccountId, bindResourceToAccount, getResourceAccountId, buildResourceKey } from '../accounts/affinity.js';
+import { affinityRegistry } from '../accounts/affinityRegistry.js';
 
 /**
  * @typedef {object} SendMessageOptions
@@ -37,6 +34,7 @@ const affinityRegistry = createAccountAffinityRegistry({ maxEntries: 10_000 });
  * @property {boolean} [waitForCompletion] — wait for long task result
  * @property {(chunk: string) => void} [onChunk]
  * @property {number} [retryCount]
+ * @property {string|null} [clientScope] — client scope for file/task affinity keys
  */
 
 function resolveModel(model) {
@@ -167,7 +165,7 @@ export async function handleFailure(response, account, options) {
 }
 
 /** Response to long task (video generation). */
-async function handleTaskResponse({ page, response, model, chatId, token, waitForCompletion }) {
+async function handleTaskResponse({ page, response, model, chatId, token, account, waitForCompletion }) {
     logInfo('Received generation task response');
     logRaw(JSON.stringify(response.data));
 
@@ -178,6 +176,12 @@ async function handleTaskResponse({ page, response, model, chatId, token, waitFo
     }
 
     logInfo(`Task ID: ${taskId}`);
+
+    // Bind task → account so getTaskStatus resolves the same account.
+    if (account?.id) {
+        bindResourceToAccount(affinityRegistry, 'task', taskId, account.id);
+        logDebug(`Affinity bind: task ${taskId} → account ${account.id}`);
+    }
 
     if (!waitForCompletion) {
         return {
@@ -336,6 +340,26 @@ export async function sendMessage(options) {
 
     const model = resolveModel(requestedModel);
 
+    // ─── File Affinity preflight ──────────────────────────────────────────────
+    // Files attached to a chat must belong to the same account as the chat,
+    // otherwise Qwen loses them ("file is not exist"). A chat bound to account A
+    // plus files owned by account B → reject before any request is made.
+    const fileAffinity = files && files.length > 0
+        ? resolveFileAccountId(affinityRegistry, files, options.clientScope)
+        : null;
+
+    if (fileAffinity?.error) {
+        return { error: fileAffinity.error, status: 409, chatId: requestedChatId, reuploadRequired: true };
+    }
+    if (fileAffinity?.hasFiles && !fileAffinity.hasKnownOwner) {
+        return {
+            error: 'Could not determine the Qwen account of the attached files. Re-upload them before sending.',
+            status: 409,
+            chatId: requestedChatId,
+            reuploadRequired: true
+        };
+    }
+
     // ─── Account Affinity ─────────────────────────────────────────────────────
     // If chatId already bound to account — use it.
     // Otherwise select new account and reset chatId (chat doesn't exist
@@ -361,9 +385,27 @@ export async function sendMessage(options) {
         }
     }
 
-    // If affinity didn't work — select account normally.
+    // Chat bound to A, files owned by B → conflict.
+    if (fileAffinity?.accountId && account?.id && account.id !== fileAffinity.accountId) {
+        return {
+            error: 'Chat and attached files belong to different Qwen accounts. Create a new chat or re-upload the files.',
+            status: 409,
+            chatId: requestedChatId,
+            reuploadRequired: true
+        };
+    }
+
+    // If affinity didn't work — select account normally, preferring the
+    // account that owns the attached files.
     if (!account) {
-        account = await resolveAccount(context);
+        if (fileAffinity?.accountId) {
+            const fileAccount = getAccountById(fileAffinity.accountId);
+            if (fileAccount && !fileAccount.invalid) {
+                account = snapshotAccountToken(fileAccount);
+                logDebug(`Affinity hit (files): → account ${fileAccount.id}`);
+            }
+        }
+        if (!account) account = await resolveAccount(context);
         if (!account) return { error: 'Authorization error: failed to get token', chatId: requestedChatId };
 
         // Reset chatId if it existed but affinity didn't work.
@@ -423,6 +465,14 @@ export async function sendMessage(options) {
         if (account.id) {
             affinityRegistry.bind(chatId, account.id);
             logDebug(`Affinity bind: chat ${chatId} → account ${account.id}`);
+        }
+    }
+
+    // Bind attached files → accountId so later requests using the same files
+    // resolve to the account that owns them.
+    if (account.id && fileAffinity?.resourceIds?.length > 0) {
+        for (const fileId of fileAffinity.resourceIds) {
+            bindResourceToAccount(affinityRegistry, 'file', fileId, account.id, options.clientScope);
         }
     }
 
@@ -497,6 +547,7 @@ export async function sendMessage(options) {
                 model,
                 chatId,
                 token,
+                account,
                 waitForCompletion
             });
         }
@@ -531,7 +582,7 @@ export async function getTaskStatus(taskId, waitForCompletion = false) {
     const context = getBrowserContext();
     if (!context) return { error: 'Browser not initialized', task_id: taskId };
 
-    const account = await resolveAccount(context);
+    const account = await resolveTaskAccount(context, taskId);
     if (!account?.token) return { error: 'Authorization error: failed to obtain token', task_id: taskId };
 
     return withPage(context, async (page) => {
@@ -554,6 +605,26 @@ export async function getTaskStatus(taskId, waitForCompletion = false) {
             data: result.data
         };
     });
+}
+
+/**
+ * Resolves the account for a task: uses task affinity if present, otherwise
+ * falls back to normal account selection.
+ */
+async function resolveTaskAccount(context, taskId) {
+    const boundAccountId = getResourceAccountId(affinityRegistry, 'task', taskId);
+    if (boundAccountId) {
+        const boundAccount = getAccountById(boundAccountId);
+        if (boundAccount && !boundAccount.invalid) {
+            const token = snapshotAccountToken(boundAccount);
+            if (token) {
+                logDebug(`Task affinity hit: ${taskId} → account ${boundAccountId}`);
+                return token;
+            }
+        }
+        affinityRegistry.forget(buildResourceKey('task', taskId));
+    }
+    return resolveAccount(context);
 }
 
 export async function clearPagePool() {

@@ -6,6 +6,7 @@ import { accountsSummary, listAccounts } from '../core/accounts/store.js';
 import { getAvailableModels } from '../core/models/registry.js';
 import { getApiKeys } from '../core/apiKeys.js';
 import { startSessionCleanup, stopSessionCleanup } from '../core/conversations/store.js';
+import { flushAffinityState } from '../core/accounts/affinityRegistry.js';
 import { initBrowser, shutdownBrowser } from '../browser/browser.js';
 import { addAccountInteractive, printAccounts, reloginAccountInteractive, removeAccountInteractive } from '../cli/accounts.js';
 import { prompt } from '../cli/prompt.js';
@@ -90,6 +91,7 @@ async function shutdown(code = 0) {
 
     logInfo('Shutting down…');
     stopSessionCleanup();
+    flushAffinityState();
 
     if (server) {
         await new Promise(resolve => server.close(resolve));

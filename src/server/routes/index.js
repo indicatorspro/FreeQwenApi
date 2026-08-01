@@ -8,6 +8,7 @@ import completionsRoutes from './completions.js';
 import filesRoutes from './files.js';
 import legacyRoutes from './legacy.js';
 import mediaRoutes from './media.js';
+import messagesRoutes from './messages.js';
 import systemRoutes from './system.js';
 
 const router = express.Router();
@@ -16,6 +17,7 @@ router.use(apiKeyAuth);
 router.use(stripVersionPrefix);
 
 router.use(completionsRoutes);
+router.use(messagesRoutes);
 router.use(systemRoutes);
 router.use(legacyRoutes);
 router.use(mediaRoutes);

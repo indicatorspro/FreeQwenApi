@@ -15,6 +15,7 @@ import {
     jsonSyntaxErrorHandler,
     notFoundHandler
 } from './middleware/index.js';
+import { createRateLimitMiddleware } from './middleware/rateLimit.js';
 
 export function createApp() {
     const app = express();
@@ -25,6 +26,7 @@ export function createApp() {
     app.use(bodyParser.urlencoded({ limit: config.server.bodyLimit, extended: true }));
     app.use(jsonSyntaxErrorHandler);
     app.use(cors);
+    app.use('/api', createRateLimitMiddleware());
 
     app.get(['/', '/dashboard'], (req, res) => {
         res.sendFile(path.join(SRC_DIR, 'dashboard', 'index.html'));
