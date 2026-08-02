@@ -38,18 +38,10 @@ This is **not a local model running on your GPU** and **not the official Alibaba
 git clone https://github.com/indicatorspro/FreeQwenApi
 cd FreeQwenApi
 pnpm install
-pnpm run auth
-pnpm run models:sync
-SKIP_ACCOUNT_MENU=true pnpm start
+pnpm start
 ```
 
-In another terminal:
-
-```bash
-pnpm run smoke
-```
-
-If everything is fine, the API is available here:
+The API will be available at:
 
 ```text
 http://localhost:3264/api
