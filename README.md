@@ -263,6 +263,102 @@ Or wait for completion directly in the status endpoint:
 curl "http://localhost:3264/api/tasks/status/TASK_ID?wait=true"
 ```
 
+## MCP Server for AI Agents (AionUI, Claude Desktop, etc.)
+
+The project includes an MCP (Model Context Protocol) server that exposes image and video generation as tools for AI agents. This allows agents to generate media directly through tool calls.
+
+### Architecture
+
+```
+User → AI Agent (AionUI) → MCP Server (mcp-media/server.js) → FreeQwenApi Proxy → Qwen Chat
+```
+
+The MCP server:
+- Receives `generate_image` and `generate_video` tool calls from the agent
+- Forwards requests to the FreeQwenApi proxy
+- Downloads the generated media from the CDN
+- Saves files locally to the conversation's working directory
+- Returns the CDN URL + local path to the agent
+
+### Setup
+
+**1. Start the FreeQwenApi proxy** (required — the MCP server depends on it):
+
+```bash
+cd FreeQwenApi
+SKIP_ACCOUNT_MENU=true pnpm start
+```
+
+**2. Configure the MCP server in your AI client:**
+
+For AionUI or any MCP-compatible client, add this to your MCP configuration:
+
+```json
+{
+  "mcpServers": {
+    "qwen-media-creator": {
+      "command": "node",
+      "args": ["/path/to/mcp-media/server.js"],
+      "env": {
+        "FREEQWEN_API_URL": "http://127.0.0.1:3264/api"
+      }
+    }
+  }
+}
+```
+
+> ⚠️ **If you changed the proxy port** (via `PORT=4000` in `.env`), adjust `FREEQWEN_API_URL` in the MCP JSON to `http://127.0.0.1:4000/api`. The MCP does not auto-discover the proxy port — it uses exactly what is configured in this variable. The same applies if the proxy is running on a different host (e.g., `http://192.168.1.100:3264/api`).
+
+**3. Install the Skill (MANDATORY for AionUI users):**
+
+> ⚠️ **The skill is required for correct operation.** Without it, the agent will not pass the `save_dir` parameter and files will be saved to a global fallback directory instead of the conversation's working directory.
+
+Import the skill from `skills/qwen-media-creator/SKILL.md` into your AionUI instance. The skill instructs the agent to:
+- Always pass `save_dir` with the current conversation's working directory
+- Include the generated image inline using markdown
+- Provide the CDN download link and local file path
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `FREEQWEN_API_URL` | `http://127.0.0.1:3264/api` | FreeQwenApi proxy URL |
+| `FREEQWEN_MEDIA_DIR` | (auto-detected) | Override the default save directory |
+| `QWEN_MEDIA_MODEL` | `qwen3-vl-plus` | Default generation model |
+
+### Save Directory Priority
+
+Files are saved in this order of priority:
+
+1. **`save_dir` parameter** — passed by the agent (set by the skill to the conversation's temp directory)
+2. **`FREEQWEN_MEDIA_DIR` env var** — explicit override in MCP config
+3. **`process.cwd()/generated`** — auto-detected from the MCP process working directory
+4. **`C:\qwen-media-generated`** — global fallback
+
+### Available Tools
+
+**`generate_image`**
+- `prompt` (required) — text description of the image
+- `size` (optional) — `16:9`, `9:16`, `1:1`, `4:3`
+- `model` (optional) — `qwen-image-max`, `qwen-image-plus`, `wan2.6-t2i`, etc.
+- `save_dir` (required via skill) — conversation working directory
+- `filename` (optional) — custom filename without extension
+
+**`generate_video`**
+- `prompt` (required) — text description of the video
+- `size` (optional) — `16:9`, `9:16`, `1:1`
+- `model` (optional) — `wan2.6-t2v`, `wan2.5-t2v-preview`, `wan2.2-t2v-flash`
+- `save_dir` (required via skill) — conversation working directory
+- `filename` (optional) — custom filename without extension
+
+### Error Handling
+
+The MCP server includes automatic retry logic:
+- **Rate limits (429)**: fails immediately with a clear message
+- **Server errors (5xx)**: retries up to 3 times with 2s delay
+- **Network errors**: retries up to 3 times with 2s delay
+- **Download failures**: returns the CDN URL without local save (graceful degradation)
+
 ## Open WebUI
 
 For local Open WebUI:

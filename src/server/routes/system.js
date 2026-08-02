@@ -133,7 +133,14 @@ router.get('/download', async (req, res) => {
         let upstream;
         let hops = 0;
         for (;;) {
-            upstream = await fetch(url.toString(), { redirect: 'manual', signal: controller.signal });
+            upstream = await fetch(url.toString(), {
+                redirect: 'manual',
+                signal: controller.signal,
+                headers: {
+                    'Referer': 'https://chat.qwen.ai/',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+                },
+            });
             if (upstream.status < 300 || upstream.status >= 400) break;
 
             const location = upstream.headers.get('location');
@@ -155,7 +162,10 @@ router.get('/download', async (req, res) => {
             .replace(/[^\w.-]+/g, '_')
             .slice(0, 120) || 'download';
 
-        res.setHeader('Content-Disposition', `attachment; filename="${name}"`);
+        const inline = req.query.inline === '1' || req.query.inline === 'true';
+        if (!inline) {
+            res.setHeader('Content-Disposition', `attachment; filename="${name}"`);
+        }
         const contentType = upstream.headers.get('content-type');
         if (contentType) res.setHeader('Content-Type', contentType);
         const contentLength = upstream.headers.get('content-length');
