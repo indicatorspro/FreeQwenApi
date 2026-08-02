@@ -262,7 +262,7 @@ The project includes an MCP (Model Context Protocol) server that exposes image a
 ### Architecture
 
 ```
-User → AI Agent (AionUI) → MCP Server (mcp-media/server.js) → FreeQwenApi Proxy → Qwen Chat
+User → AI Agent (AionUI, Claude Code, Codex, Hermes Agent, Claude Desktop) → MCP Server (mcp-media/server.js) → FreeQwenApi Proxy → Qwen Chat
 ```
 
 The MCP server:
@@ -278,19 +278,26 @@ The MCP server:
 
 ```bash
 cd FreeQwenApi
-SKIP_ACCOUNT_MENU=true pnpm start
+pnpm start
 ```
 
 **2. Configure the MCP server in your AI client:**
 
-For AionUI or any MCP-compatible client, add this to your MCP configuration:
+Add the MCP server to your client's configuration file. Works with AionUI, Claude Code, Codex, Hermes Agent, Claude Desktop, and any MCP-compatible client:
+
+| Client | Config file |
+|--------|-------------|
+| **AionUI** | App settings → MCP Servers |
+| **Claude Desktop** | `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows) |
+| **Claude Code** | `.mcp.json` in your project root |
+| **Codex / Hermes Agent** | Project-level MCP config or `settings.json` |
 
 ```json
 {
   "mcpServers": {
     "qwen-media-creator": {
       "command": "node",
-      "args": ["/path/to/mcp-media/server.js"],
+      "args": ["C:\\VAULT-AI\\CUEN\\FreeQwenApi\\mcp-media\\server.js"],
       "env": {
         "FREEQWEN_API_URL": "http://127.0.0.1:3264/api"
       }
@@ -299,13 +306,15 @@ For AionUI or any MCP-compatible client, add this to your MCP configuration:
 }
 ```
 
+> **Tip:** adjust the `args` path to where you cloned the repository.
+
 > ⚠️ **If you changed the proxy port** (via `PORT=4000` in `.env`), adjust `FREEQWEN_API_URL` in the MCP JSON to `http://127.0.0.1:4000/api`. The MCP does not auto-discover the proxy port — it uses exactly what is configured in this variable. The same applies if the proxy is running on a different host (e.g., `http://192.168.1.100:3264/api`).
 
-**3. Install the Skill (MANDATORY for AionUI users):**
+**3. Install the Skill (recommended):**
 
-> ⚠️ **The skill is required for correct operation.** Without it, the agent will not pass the `save_dir` parameter and files will be saved to a global fallback directory instead of the conversation's working directory.
+> ⚠️ **The skill ensures correct operation.** Without it, the agent will not pass the `save_dir` parameter and files will be saved to a global fallback directory instead of the conversation's working directory.
 
-Import the skill from `skills/qwen-media-creator/SKILL.md` into your AionUI instance. The skill instructs the agent to:
+Import the skill from `skills/qwen-media-creator/SKILL.md` into your AI client (AionUI, Claude Code, etc.). The skill instructs the agent to:
 - Always pass `save_dir` with the current conversation's working directory
 - Include the generated image inline using markdown
 - Provide the CDN download link and local file path
